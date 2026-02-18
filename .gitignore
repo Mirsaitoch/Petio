@@ -1,0 +1,96 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode / iOS
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+*.xcworkspace
+!default.xcworkspace
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.yarn/cache
+.yarn/install-state.gz
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/patches
+.yarn/sdks
+.yarn/versions
+
+# Vite / build
+dist/
+*.local
+
+# Env and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE / Editor
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.cursor/
+
+# Logs and temp
+*.log
+tmp/
+temp/
+.cache/
+
+# Test / coverage
+coverage/
+*.gcov
+*.gcno
+*.gcda
+*.result
+
+# Misc
+*.bak
+*.orig
+Thumbs.db
+
+Pet Care Mobile App Design/

@@ -94,18 +94,25 @@ struct PetCareSectionHeader: View {
     let title: String
     let actionTitle: String?
     let action: (() -> Void)?
+    let foregroundColor: Color?
 
-    init(title: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+    init(
+        title: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil,
+        foregroundColor: Color? = PetCareTheme.primary
+    ) {
         self.title = title
         self.actionTitle = actionTitle
         self.action = action
+        self.foregroundColor = foregroundColor
     }
 
     var body: some View {
         HStack {
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(PetCareTheme.primary)
+                .foregroundColor(foregroundColor)
             Spacer()
             if let actionTitle = actionTitle, let action = action {
                 Button(action: action) {
@@ -115,7 +122,7 @@ struct PetCareSectionHeader: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12))
                     }
-                    .foregroundColor(PetCareTheme.primary)
+                    .foregroundColor(foregroundColor)
                 }
                 .buttonStyle(.plain)
             }

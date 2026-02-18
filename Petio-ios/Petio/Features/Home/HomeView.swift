@@ -10,20 +10,26 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var app: AppState
     @State private var path: [AppRoute] = []
-
+    
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                    myPetsSection
                     todayTasksSection
                     upcomingSection
                     quickActionsSection
                 }
+                .background(PetCareTheme.background)
                 .padding(.bottom, 24)
             }
-            .background(PetCareTheme.background)
+            .background {
+                VStack {
+                    PetCareTheme.primary
+                    PetCareTheme.background
+                }
+                .ignoresSafeArea()
+            }
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .pets:
@@ -43,41 +49,52 @@ struct HomeView: View {
                     Task { await app.loadAll() }
                 }
             }
+            
         }
     }
-
+    
     private var header: some View {
-        PetCareGradientHeader(
-            title: "Petio",
-            subtitle: "Добро пожаловать 👋"
-        ) {
-            ZStack(alignment: .topTrailing) {
-                PetCareIconButton(icon: "bell", size: 44, style: .primaryOverlay) { }
-                let count = app.todayReminders().filter { !$0.completed }.count
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .medium))
+        ZStack {
+            PetCareTheme.primary.ignoresSafeArea()
+            VStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Добро пожаловать 👋")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.7))
+                    
+                    Text("Petio")
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .offset(x: 6, y: -6)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                myPetsSection
+                    .padding(.bottom, 8)
             }
         }
+        .clipShape(
+            .rect(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 32,
+                bottomTrailingRadius: 32,
+                topTrailingRadius: 0
+            )
+        )
         .padding(.bottom, 16)
     }
-
+    
     private var myPetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             PetCareSectionHeader(
                 title: "Мои питомцы",
                 actionTitle: "Все",
-                action: { path.append(.pets) }
+                action: { path.append(.pets) },
+                foregroundColor: .white
             )
+            .foregroundColor(.white)
             .padding(.horizontal, 20)
-
+            
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(app.pets) { pet in
@@ -109,7 +126,7 @@ struct HomeView: View {
             .padding(.vertical, 4)
         }
     }
-
+    
     private var todayTasksSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             PetCareSectionHeader(
@@ -118,7 +135,7 @@ struct HomeView: View {
                 action: { path.append(.health) }
             )
             .padding(.horizontal, 20)
-
+            
             let today = app.todayReminders()
             if today.isEmpty {
                 VStack(spacing: 8) {
@@ -148,7 +165,7 @@ struct HomeView: View {
             }
         }
     }
-
+    
     private var upcomingSection: some View {
         Group {
             let upcoming = app.upcomingReminders()
@@ -185,14 +202,14 @@ struct HomeView: View {
             }
         }
     }
-
+    
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Быстрые действия")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(PetCareTheme.primary)
                 .padding(.horizontal, 20)
-
+            
             HStack(spacing: 12) {
                 quickActionCard(title: "Советы AI", icon: "stethoscope", color: Color.green) {
                     path.append(.chat)
@@ -205,7 +222,7 @@ struct HomeView: View {
         }
         .padding(.top, 20)
     }
-
+    
     private func quickActionCard(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
@@ -225,7 +242,7 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
     }
-
+    
     private func speciesEmoji(_ species: String) -> String {
         switch species {
         case "Собака": return "🐕"

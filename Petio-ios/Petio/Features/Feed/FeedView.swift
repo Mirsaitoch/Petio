@@ -2,8 +2,6 @@
 //  FeedView.swift
 //  Petio
 //
-//  Лента постов по клубам, лайки, комментарии.
-//
 
 import SwiftUI
 

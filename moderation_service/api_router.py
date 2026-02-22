@@ -14,7 +14,7 @@ class TextRequest(BaseModel):
 
 
 @router.post("/texts_scores")
-def texts_scores(request: TextRequest):
+async def texts_scores(request: TextRequest):
     return predict_text(request.text)
 
 

@@ -3,7 +3,10 @@ from transformers import PreTrainedTokenizerFast
 import onnxruntime as ort
 from scipy.special import expit
 from constants import CLASSES_NAME
-from tools import softmax
+from tools import softmax, download_all_from_s3
+
+
+download_all_from_s3("text_filter", "models/text_filter")
 
 # Загрузка токенизатора и модели
 tokenizer = PreTrainedTokenizerFast(tokenizer_file="models/text_filter/tokenizer/tokenizer.json")

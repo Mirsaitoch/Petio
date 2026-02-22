@@ -2,17 +2,22 @@ import numpy as np
 from PIL import Image
 from transformers import AutoImageProcessor, PreTrainedTokenizerFast
 import onnxruntime as ort
-from tools import softmax
+from tools import softmax, download_all_from_s3
 from constants import LABELS
 
+
+download_all_from_s3("image_filter", "models/image_filter")
 # NSFW модель
-nsfw_processor = AutoImageProcessor.from_pretrained("nsfw_processor/preprocessor_config.json")
+nsfw_processor = AutoImageProcessor.from_pretrained("models/image_filter/nsfw_model/nsfw_processor/preprocessor_config.json")
 nsfw_ort_session = ort.InferenceSession("models/image_filter/nsfw_model/nsfw_image_detection.onnx")
 
+
+
 # CLIP модель
-clip_image_processor = AutoImageProcessor.from_pretrained("clip_processor/processor_config.json")
+clip_image_processor = AutoImageProcessor.from_pretrained("models/image_filter/clip_model/clip_processor/processor_config.json")
 clip_ort_image_session = ort.InferenceSession("models/image_filter/clip_model/clip_vision_model.onnx")
-clip_tokenizer = PreTrainedTokenizerFast(tokenizer_file="clip_processor/tokenizer.json")
+
+clip_tokenizer = PreTrainedTokenizerFast(tokenizer_file="models/image_filter/clip_model/clip_processor/tokenizer.json")
 clip_ort_text_session = ort.InferenceSession("models/image_filter/clip_model/clip_text_model.onnx")
 if clip_tokenizer.pad_token is None:
     clip_tokenizer.add_special_tokens({'pad_token': '<|endoftext|>'})

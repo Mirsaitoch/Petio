@@ -28,6 +28,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        
+  moderation_api:
+    build:
+      context: ./moderation_service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/petio?sslmode=disable"
 
 volumes:
   postgres_data:

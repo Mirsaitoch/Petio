@@ -2,8 +2,6 @@
 //  SegmentedTabs.swift
 //  Petio
 //
-//  Сегментированные табы и горизонтальные чипы.
-//
 
 import SwiftUI
 

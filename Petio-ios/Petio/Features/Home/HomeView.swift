@@ -49,7 +49,6 @@ struct HomeView: View {
                     Task { await app.loadAll() }
                 }
             }
-            
         }
     }
     

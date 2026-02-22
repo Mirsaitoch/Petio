@@ -38,6 +38,7 @@ struct SegmentedTabs<T: Hashable>: View {
 }
 
 struct ChipGroup: View {
+    let haveAdditionalPadding: Bool
     let labels: [String]
     @Binding var selection: String
 
@@ -61,7 +62,7 @@ struct ChipGroup: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, haveAdditionalPadding ? 20 : 4)
         }
     }
 }

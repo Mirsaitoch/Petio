@@ -7,10 +7,15 @@
 
 import SwiftUI
 
+enum ProfileTab: String, CaseIterable {
+    case posts = "Мои посты"
+    case liked = "Понравилось"
+}
+
 struct ProfileView: View {
     @EnvironmentObject private var app: AppState
     @State private var showEditProfile = false
-    @State private var activeTab = "posts"
+    @State private var selectedTab: ProfileTab = .posts
 
     private var myPosts: [Post] {
         app.posts.filter { $0.author == app.user.name }
@@ -19,20 +24,17 @@ struct ProfileView: View {
         app.posts.filter(\.liked)
     }
     private var displayPosts: [Post] {
-        activeTab == "posts" ? myPosts : likedPosts
+        selectedTab == .posts ? myPosts : likedPosts
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header
-                    myPetsSection
-                    postTabs
-                    postsList
-                    settingsSection
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                tabs
+                ScrollView(showsIndicators: false) {
+                    profileContent
                 }
-                .padding(.bottom, 24)
             }
             .background(PetCareTheme.background)
             .navigationDestination(for: AppRoute.self) { route in
@@ -55,82 +57,137 @@ struct ProfileView: View {
     }
 
     private var header: some View {
-        ZStack(alignment: .bottomLeading) {
-            PetCareGradientHeader(title: "Профиль") {
-                Button {
-                    showEditProfile = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 20))
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Профиль")
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(Circle())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        showEditProfile = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-            .frame(height: 140)
 
-            HStack(alignment: .top, spacing: 16) {
-                ZStack(alignment: .bottomTrailing) {
-                    CircleAvatarView(
-                        url: app.user.avatar,
-                        fallbackLetter: String(app.user.name.prefix(1)),
-                        size: 80
-                    )
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(PetCareTheme.primary)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white)
-                        .clipShape(Circle())
-                        .offset(x: 2, y: 2)
+                HStack(alignment: .top, spacing: 12) {
+                    ZStack(alignment: .bottomTrailing) {
+                        CircleAvatarView(
+                            url: app.user.avatar,
+                            fallbackLetter: String(app.user.name.prefix(1)),
+                            size: 64
+                        )
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(PetCareTheme.primary)
+                            .frame(width: 24, height: 24)
+                            .background(Color.white)
+                            .clipShape(Circle())
+                            .offset(x: 2, y: 2)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(app.user.name)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text(app.user.username)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.7))
+                        Text(app.user.bio)
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(app.user.name)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text(app.user.username)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.7))
-                    Text(app.user.bio)
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.9))
-                        .lineLimit(2)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                HStack(spacing: 8) {
+                    statCard(icon: "pawprint", value: "\(app.pets.count)", label: "Питомцев")
+                    statCard(icon: "square.and.pencil", value: "\(myPosts.count)", label: "Постов")
+                    statCard(icon: "calendar", value: app.user.joinDate, label: "С нами с")
                 }
-                Spacer()
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-            .padding(.top, 8)
+            .padding(.bottom, 20)
+            .background {
+                PetCareTheme.primary
+                    .clipShape(
+                        .rect(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 32,
+                            bottomTrailingRadius: 32,
+                            topTrailingRadius: 0
+                        )
+                    )
+                    .ignoresSafeArea()
+            }
         }
-        .padding(.bottom, 8)
-
-        return HStack(spacing: 12) {
-            statCard(icon: "pawprint", value: "\(app.pets.count)", label: "Питомцев")
-            statCard(icon: "square.and.pencil", value: "\(myPosts.count)", label: "Постов")
-            statCard(icon: "calendar", value: app.user.joinDate, label: "С нами с")
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, -8)
+        .padding(.bottom, 16)
     }
 
     private func statCard(icon: String, value: String, label: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.8))
             Text(value)
-                .font(.system(size: value.count > 3 ? 11 : 18, weight: .medium))
+                .font(.system(size: value.count > 3 ? 10 : 16, weight: .medium))
                 .foregroundColor(.white)
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 9))
                 .foregroundColor(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(Color.white.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 4) {
+            ForEach(ProfileTab.allCases, id: \.rawValue) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Text(tab == .posts ? "Мои посты (\(myPosts.count))" : "Понравилось (\(likedPosts.count))")
+                        .font(.system(size: 14))
+                        .foregroundColor(selectedTab == tab ? PetCareTheme.primary : PetCareTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(selectedTab == tab ? Color.white : Color.clear)
+                )
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(PetCareTheme.secondary)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder
+    private var profileContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            myPetsSection
+            postsList
+            settingsSection
+        }
+        .padding(.bottom, 24)
     }
 
     private var myPetsSection: some View {
@@ -158,9 +215,7 @@ struct ProfileView: View {
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
-                            .background(PetCareTheme.cardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(PetCareTheme.border, lineWidth: 1))
+                            .petCareCardStyle()
                         }
                         .buttonStyle(.plain)
                     }
@@ -170,46 +225,9 @@ struct ProfileView: View {
         }
     }
 
-    private var postTabs: some View {
-        HStack(spacing: 0) {
-            Button {
-                activeTab = "posts"
-            } label: {
-                Text("Мои посты (\(myPosts.count))")
-                    .font(.system(size: 14))
-                    .foregroundColor(activeTab == "posts" ? PetCareTheme.primary : PetCareTheme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(activeTab == "posts" ? Color.white : Color.clear)
-            )
-            .buttonStyle(.plain)
-            Button {
-                activeTab = "liked"
-            } label: {
-                Text("Понравилось (\(likedPosts.count))")
-                    .font(.system(size: 14))
-                    .foregroundColor(activeTab == "liked" ? PetCareTheme.primary : PetCareTheme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(activeTab == "liked" ? Color.white : Color.clear)
-            )
-            .buttonStyle(.plain)
-        }
-        .padding(4)
-        .background(PetCareTheme.secondary)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 20)
-    }
-
     private var postsList: some View {
-        VStack(spacing: 12) {
-            ForEach(displayPosts) { post in
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(displayPosts.enumerated()), id: \.element.id) { index, post in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         CircleAvatarView(url: post.avatar, fallbackLetter: String(post.author.prefix(1)), size: 32)
@@ -239,13 +257,18 @@ struct ProfileView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .petCareCardStyle()
                 .padding(.horizontal, 20)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.96)),
+                    removal: .opacity.combined(with: .move(edge: .leading))
+                ))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(Double(min(index, 8)) * 0.03), value: displayPosts.map(\.id))
             }
             if displayPosts.isEmpty {
                 VStack(spacing: 12) {
-                    Image(systemName: activeTab == "posts" ? "square.and.pencil" : "heart")
+                    Image(systemName: selectedTab == .posts ? "square.and.pencil" : "heart")
                         .font(.system(size: 40))
                         .foregroundColor(PetCareTheme.primary.opacity(0.3))
-                    Text(activeTab == "posts" ? "Вы ещё ничего не публиковали" : "Нет понравившихся постов")
+                    Text(selectedTab == .posts ? "Вы ещё ничего не публиковали" : "Нет понравившихся постов")
                         .font(.system(size: 14))
                         .foregroundColor(PetCareTheme.muted)
                 }
@@ -267,9 +290,7 @@ struct ProfileView: View {
                 settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь")
                 settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти")
             }
-            .background(PetCareTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(PetCareTheme.border, lineWidth: 1))
+            .petCareCardStyle()
             .padding(.horizontal, 20)
         }
     }

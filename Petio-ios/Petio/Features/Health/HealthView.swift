@@ -47,15 +47,14 @@ struct HealthView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                tabs
+        VStack(alignment: .leading, spacing: 16) {
+            header
+            tabs
+            ScrollView(showsIndicators: false) {
                 tabContent
             }
-            .padding(.bottom, 24)
-            .background(PetCareTheme.background)
         }
+        .background(PetCareTheme.background)
         .sheet(isPresented: $showAddReminder) {
             AddReminderSheet(selectedPetId: app.selectedPetId, pets: app.pets) { r in
                 Task { await app.addReminder(r) }
@@ -74,19 +73,11 @@ struct HealthView: View {
                 showAddWeight = false
             } onCancel: { showAddWeight = false }
         }
-        .background {
-            VStack {
-                PetCareTheme.primary
-                PetCareTheme.background
-            }
-            .ignoresSafeArea()
-        }
     }
     
     private var header: some View {
-        ZStack {
-            PetCareTheme.primary.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading) {
+            VStack(alignment: .leading) {
                 Text("Здоровье")
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
@@ -115,52 +106,57 @@ struct HealthView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
-                
-                if showPetPicker {
-                    VStack(spacing: 4) {
-                        ForEach(Array(app.pets.enumerated()), id: \.element.id) { index, p in
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    app.selectedPetId = p.id
-                                    showPetPicker = false
-                                }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    AvatarView(url: p.photo, placeholder: "🐾", size: 24)
-                                    Text(p.name)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(app.selectedPetId == p.id ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.92)).combined(with: .move(edge: .top)),
-                                removal: .opacity.combined(with: .scale(scale: 0.92))
-                            ))
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
-                }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showPetPicker)
+            .background(PetCareTheme.primary)
+            
+            if showPetPicker {
+                VStack(spacing: 4) {
+                    ForEach(Array(app.pets.enumerated()), id: \.element.id) { index, p in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                app.selectedPetId = p.id
+                                showPetPicker = false
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                AvatarView(url: p.photo, placeholder: "🐾", size: 24)
+                                Text(p.name)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(app.selectedPetId == p.id ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.92)).combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.92))
+                        ))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+            }
         }
-        .clipShape(
-            .rect(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 32,
-                bottomTrailingRadius: 32,
-                topTrailingRadius: 0
-            )
-        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showPetPicker)
         .padding(.bottom, 16)
+        .background {
+            PetCareTheme.primary
+                .clipShape(
+                    .rect(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 32,
+                        bottomTrailingRadius: 32,
+                        topTrailingRadius: 0
+                    )
+                )
+                .ignoresSafeArea()
+        }
     }
     
     private var tabs: some View {
@@ -233,10 +229,10 @@ struct HealthView: View {
             .padding(.horizontal, 20)
             
             ChipGroup(
+                haveAdditionalPadding: true,
                 labels: ["Все", "Кормление", "Прививки", "Обработка", "Груминг"],
                 selection: $filterType
             )
-            .padding(.horizontal, 20)
             
             ForEach(Array(petReminders.enumerated()), id: \.element.id) { index, r in
                 PetCareReminderRow(

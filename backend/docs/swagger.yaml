@@ -1,0 +1,1120 @@
+basePath: /
+definitions:
+  domain.Article:
+    properties:
+      careType:
+        type: string
+      category:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      image:
+        type: string
+      petType:
+        type: string
+      readTime:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.Comment:
+    properties:
+      author:
+        type: string
+      avatar:
+        type: string
+      content:
+        type: string
+      id:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  domain.HealthDiaryEntry:
+    properties:
+      date:
+        type: string
+      id:
+        type: string
+      note:
+        type: string
+      petId:
+        type: string
+    type: object
+  domain.Pet:
+    properties:
+      age:
+        type: string
+      birthDate:
+        type: string
+      breed:
+        type: string
+      features:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      photo:
+        type: string
+      species:
+        type: string
+      vaccinations:
+        items:
+          $ref: '#/definitions/domain.Vaccination'
+        type: array
+      weight:
+        type: number
+    type: object
+  domain.Post:
+    properties:
+      author:
+        type: string
+      avatar:
+        type: string
+      club:
+        type: string
+      comments:
+        items:
+          $ref: '#/definitions/domain.Comment'
+        type: array
+      content:
+        type: string
+      id:
+        type: string
+      image:
+        type: string
+      liked:
+        type: boolean
+      likes:
+        type: integer
+      timestamp:
+        type: string
+    type: object
+  domain.Reminder:
+    properties:
+      completed:
+        type: boolean
+      date:
+        type: string
+      id:
+        type: string
+      petId:
+        type: string
+      petName:
+        type: string
+      time:
+        type: string
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/domain.ReminderType'
+    type: object
+  domain.ReminderType:
+    enum:
+    - feeding
+    - vaccination
+    - deworming
+    - grooming
+    type: string
+    x-enum-varnames:
+    - ReminderFeeding
+    - ReminderVaccination
+    - ReminderDeworming
+    - ReminderGrooming
+  domain.UserProfile:
+    properties:
+      avatar:
+        type: string
+      bio:
+        type: string
+      joinDate:
+        type: string
+      name:
+        type: string
+      petsCount:
+        type: integer
+      postsCount:
+        type: integer
+      username:
+        type: string
+    type: object
+  domain.Vaccination:
+    properties:
+      date:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nextDate:
+        type: string
+    type: object
+  domain.WeightRecord:
+    properties:
+      date:
+        type: string
+      weight:
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API приложения для ухода за домашними животными
+  title: Petio API
+  version: "1.0"
+paths:
+  /v1/articles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Article'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список статей
+      tags:
+      - articles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: статья
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Article'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Article'
+      security:
+      - BearerAuth: []
+      summary: Создать статью
+      tags:
+      - articles
+  /v1/articles/{id}:
+    delete:
+      parameters:
+      - description: ID статьи
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить статью
+      tags:
+      - articles
+    get:
+      parameters:
+      - description: ID статьи
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Article'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить статью по ID
+      tags:
+      - articles
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID статьи
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Article'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Article'
+      security:
+      - BearerAuth: []
+      summary: Обновить статью
+      tags:
+      - articles
+  /v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: email, password
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Вход
+      tags:
+      - auth
+  /v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: email, password
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Регистрация
+      tags:
+      - auth
+  /v1/chat/send:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: text
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: reply
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Отправить сообщение в чат
+      tags:
+      - chat
+  /v1/diary/{id}:
+    delete:
+      parameters:
+      - description: ID записи
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить запись дневника
+      tags:
+      - diary
+    get:
+      parameters:
+      - description: ID записи
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.HealthDiaryEntry'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить запись дневника по ID
+      tags:
+      - diary
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID записи
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.HealthDiaryEntry'
+      responses:
+        "200":
+          description: OK
+      security:
+      - BearerAuth: []
+      summary: Обновить запись дневника
+      tags:
+      - diary
+  /v1/pets:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Pet'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список питомцев
+      tags:
+      - pets
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: питомец
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Pet'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Pet'
+      security:
+      - BearerAuth: []
+      summary: Добавить питомца
+      tags:
+      - pets
+  /v1/pets/{id}:
+    delete:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить питомца
+      tags:
+      - pets
+    get:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Pet'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить питомца по ID
+      tags:
+      - pets
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID питомца
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные питомца
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Pet'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Pet'
+      security:
+      - BearerAuth: []
+      summary: Обновить питомца
+      tags:
+      - pets
+  /v1/pets/{petId}/diary:
+    get:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.HealthDiaryEntry'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список записей дневника питомца
+      tags:
+      - diary
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      - description: запись
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.HealthDiaryEntry'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.HealthDiaryEntry'
+      security:
+      - BearerAuth: []
+      summary: Создать запись в дневнике
+      tags:
+      - diary
+  /v1/pets/{petId}/weight:
+    get:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.WeightRecord'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список записей веса питомца
+      tags:
+      - weight
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      - description: date, weight
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.WeightRecord'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+      security:
+      - BearerAuth: []
+      summary: Добавить запись веса
+      tags:
+      - weight
+  /v1/pets/{petId}/weight/{date}:
+    delete:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      - description: Дата (YYYY-MM-DD)
+        in: path
+        name: date
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить запись веса
+      tags:
+      - weight
+    get:
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      - description: Дата (YYYY-MM-DD)
+        in: path
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.WeightRecord'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить запись веса по дате
+      tags:
+      - weight
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID питомца
+        in: path
+        name: petId
+        required: true
+        type: string
+      - description: Дата (YYYY-MM-DD)
+        in: path
+        name: date
+        required: true
+        type: string
+      - description: weight
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.WeightRecord'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.WeightRecord'
+      security:
+      - BearerAuth: []
+      summary: Обновить запись веса
+      tags:
+      - weight
+  /v1/posts:
+    get:
+      parameters:
+      - description: фильтр по клубу
+        in: query
+        name: club
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Post'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список постов
+      tags:
+      - posts
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: пост
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Post'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Post'
+      security:
+      - BearerAuth: []
+      summary: Создать пост
+      tags:
+      - posts
+  /v1/posts/{id}:
+    delete:
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить пост
+      tags:
+      - posts
+    get:
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Post'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить пост по ID
+      tags:
+      - posts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Post'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Post'
+      security:
+      - BearerAuth: []
+      summary: Обновить пост
+      tags:
+      - posts
+  /v1/posts/{id}/like:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID поста
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'liked: true/false'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      responses:
+        "200":
+          description: OK
+      security:
+      - BearerAuth: []
+      summary: Поставить/убрать лайк
+      tags:
+      - posts
+  /v1/posts/{postId}/comments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID поста
+        in: path
+        name: postId
+        required: true
+        type: string
+      - description: комментарий
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Comment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Comment'
+      security:
+      - BearerAuth: []
+      summary: Добавить комментарий к посту
+      tags:
+      - posts
+  /v1/profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.UserProfile'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить профиль текущего пользователя
+      tags:
+      - profile
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: name, username, avatar, bio
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.UserProfile'
+      security:
+      - BearerAuth: []
+      summary: Обновить профиль
+      tags:
+      - profile
+  /v1/reminders:
+    get:
+      parameters:
+      - description: фильтр по питомцу
+        in: query
+        name: petId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Reminder'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список напоминаний
+      tags:
+      - reminders
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: напоминание
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Reminder'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Reminder'
+      security:
+      - BearerAuth: []
+      summary: Создать напоминание
+      tags:
+      - reminders
+  /v1/reminders/{id}:
+    delete:
+      parameters:
+      - description: ID напоминания
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить напоминание
+      tags:
+      - reminders
+    get:
+      parameters:
+      - description: ID напоминания
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Reminder'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить напоминание по ID
+      tags:
+      - reminders
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID напоминания
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Reminder'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Reminder'
+      security:
+      - BearerAuth: []
+      summary: Обновить напоминание
+      tags:
+      - reminders
+  /v1/upload/pet-photo:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Изображение (JPEG, PNG, GIF, WebP, до 10 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: url
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Загрузка фото питомца
+      tags:
+      - upload
+  /v1/upload/post-image:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Изображение (JPEG, PNG, GIF, WebP, до 10 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: url
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Загрузка картинки к посту
+      tags:
+      - upload
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

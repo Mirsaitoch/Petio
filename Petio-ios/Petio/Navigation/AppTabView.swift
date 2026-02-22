@@ -38,25 +38,33 @@ struct AppTabView: View {
     @EnvironmentObject private var app: AppState
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Group {
-                switch selectedTab {
-                case .home:
-                    HomeView()
-                case .health:
-                    HealthView()
-                case .feed:
-                    FeedView()
-                case .profile:
-                    ProfileView()
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem {
+                    Label(AppTab.home.title, systemImage: AppTab.home.icon)
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tag(AppTab.home)
 
-            if !showChat {
-                tabBar
-            }
+            HealthView()
+                .tabItem {
+                    Label(AppTab.health.title, systemImage: AppTab.health.icon)
+                }
+                .tag(AppTab.health)
 
+            FeedView()
+                .tabItem {
+                    Label(AppTab.feed.title, systemImage: AppTab.feed.icon)
+                }
+                .tag(AppTab.feed)
+
+            ProfileView()
+                .tabItem {
+                    Label(AppTab.profile.title, systemImage: AppTab.profile.icon)
+                }
+                .tag(AppTab.profile)
+        }
+        .tint(PetCareTheme.primary)
+        .overlay(alignment: .bottomTrailing) {
             if !showChat {
                 chatFloatingButton
             }
@@ -64,41 +72,6 @@ struct AppTabView: View {
         .fullScreenCover(isPresented: $showChat) {
             ChatView(onDismiss: { showChat = false })
         }
-    }
-
-    private var tabBar: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            HStack(spacing: 0) {
-                ForEach(AppTab.allCases, id: \.rawValue) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 20))
-                                .foregroundColor(selectedTab == tab ? PetCareTheme.primary : PetCareTheme.muted)
-                            Text(tab.title)
-                                .font(.system(size: 10))
-                                .foregroundColor(selectedTab == tab ? PetCareTheme.primary : PetCareTheme.muted)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 6)
-            .background(PetCareTheme.cardBackground)
-            .overlay(
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundColor(PetCareTheme.border),
-                alignment: .top
-            )
-        }
-        .frame(height: 70)
     }
 
     private var chatFloatingButton: some View {

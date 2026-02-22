@@ -22,7 +22,7 @@ struct HealthView: View {
     @State private var showAddReminder = false
     @State private var showAddDiary = false
     @State private var showAddWeight = false
-
+    
     private var selectedPet: Pet? { app.selectedPet }
     private static let filterToRaw: [String: String] = [
         "Все": "all", "Кормление": "feeding", "Прививки": "vaccination",
@@ -45,7 +45,7 @@ struct HealthView: View {
         let done = petReminders.filter(\.completed).count
         return Int((Double(done) / Double(total)) * 100)
     }
-
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -54,8 +54,8 @@ struct HealthView: View {
                 tabContent
             }
             .padding(.bottom, 24)
+            .background(PetCareTheme.background)
         }
-        .background(PetCareTheme.background)
         .sheet(isPresented: $showAddReminder) {
             AddReminderSheet(selectedPetId: app.selectedPetId, pets: app.pets) { r in
                 Task { await app.addReminder(r) }
@@ -74,64 +74,95 @@ struct HealthView: View {
                 showAddWeight = false
             } onCancel: { showAddWeight = false }
         }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            PetCareGradientHeader(title: "Здоровье")
-            Button {
-                showPetPicker.toggle()
-            } label: {
-                HStack(spacing: 8) {
-                    AvatarView(
-                        url: selectedPet?.photo,
-                        placeholder: "🐾",
-                        size: 28
-                    )
-                    Text(selectedPet?.name ?? "Выберите питомца")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background {
+            VStack {
+                PetCareTheme.primary
+                PetCareTheme.background
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 20)
-            .padding(.top, -8)
-
-            if showPetPicker {
-                VStack(spacing: 4) {
-                    ForEach(app.pets) { p in
-                        Button {
-                            app.selectedPetId = p.id
-                            showPetPicker = false
-                        } label: {
-                            HStack(spacing: 8) {
-                                AvatarView(url: p.photo, placeholder: "🐾", size: 24)
-                                Text(p.name)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(app.selectedPetId == p.id ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-            }
+            .ignoresSafeArea()
         }
     }
-
+    
+    private var header: some View {
+        ZStack {
+            PetCareTheme.primary.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Здоровье")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Button {
+                    showPetPicker.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        AvatarView(
+                            url: selectedPet?.photo,
+                            placeholder: "🐾",
+                            size: 28
+                        )
+                        Text(selectedPet?.name ?? "Выберите питомца")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
+                            .rotationEffect(.degrees(showPetPicker ? 180 : 0))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                
+                if showPetPicker {
+                    VStack(spacing: 4) {
+                        ForEach(Array(app.pets.enumerated()), id: \.element.id) { index, p in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    app.selectedPetId = p.id
+                                    showPetPicker = false
+                                }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    AvatarView(url: p.photo, placeholder: "🐾", size: 24)
+                                    Text(p.name)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(app.selectedPetId == p.id ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.92)).combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.92))
+                            ))
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showPetPicker)
+        }
+        .clipShape(
+            .rect(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 32,
+                bottomTrailingRadius: 32,
+                topTrailingRadius: 0
+            )
+        )
+        .padding(.bottom, 16)
+    }
+    
     private var tabs: some View {
         HStack(spacing: 4) {
             ForEach(HealthTab.allCases, id: \.rawValue) { tab in
@@ -156,7 +187,7 @@ struct HealthView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 20)
     }
-
+    
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
@@ -168,7 +199,7 @@ struct HealthView: View {
             diaryContent
         }
     }
-
+    
     private var remindersContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
@@ -198,15 +229,16 @@ struct HealthView: View {
             }
             .padding(16)
             .petCareCardStyle()
+            .animation(.spring(response: 0.5, dampingFraction: 0.75), value: progressPercent)
             .padding(.horizontal, 20)
-
+            
             ChipGroup(
                 labels: ["Все", "Кормление", "Прививки", "Обработка", "Груминг"],
                 selection: $filterType
             )
             .padding(.horizontal, 20)
-
-            ForEach(petReminders) { r in
+            
+            ForEach(Array(petReminders.enumerated()), id: \.element.id) { index, r in
                 PetCareReminderRow(
                     title: r.title,
                     subtitle: "\(r.date) · \(r.time)",
@@ -217,15 +249,20 @@ struct HealthView: View {
                     onDelete: { Task { await app.deleteReminder(id: r.id) } }
                 )
                 .padding(.horizontal, 20)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.96)),
+                    removal: .opacity.combined(with: .move(edge: .leading))
+                ))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(Double(min(index, 8)) * 0.03), value: petReminders.map(\.id))
             }
-
+            
             PetCareDashedButton(title: "Добавить напоминание", icon: "plus") {
                 showAddReminder = true
             }
             .padding(.horizontal, 20)
         }
     }
-
+    
     private var weightContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -240,7 +277,9 @@ struct HealthView: View {
             .padding(16)
             .petCareCardStyle()
             .padding(.horizontal, 20)
-
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .animation(.easeOut(duration: 0.3), value: selectedTab)
+            
             if !petWeightData.isEmpty {
                 Chart(petWeightData, id: \.date) { rec in
                     LineMark(
@@ -258,18 +297,20 @@ struct HealthView: View {
                 .padding(16)
                 .petCareCardStyle()
                 .padding(.horizontal, 20)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .animation(.easeOut(duration: 0.35).delay(0.05), value: petWeightData.count)
             }
-
+            
             PetCareDashedButton(title: "Добавить запись веса") {
                 showAddWeight = true
             }
             .padding(.horizontal, 20)
         }
     }
-
+    
     private var diaryContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(petDiary) { entry in
+            ForEach(Array(petDiary.enumerated()), id: \.element.id) { index, entry in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(entry.date)
                         .font(.system(size: 11))
@@ -286,133 +327,16 @@ struct HealthView: View {
                 .padding(16)
                 .petCareCardStyle()
                 .padding(.horizontal, 20)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.97)),
+                    removal: .opacity.combined(with: .scale(scale: 0.97))
+                ))
+                .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(Double(min(index, 6)) * 0.05), value: petDiary.map(\.id))
             }
             PetCareDashedButton(title: "Новая запись") {
                 showAddDiary = true
             }
             .padding(.horizontal, 20)
-        }
-    }
-}
-
-struct AddReminderSheet: View {
-    let selectedPetId: String
-    let pets: [Pet]
-    let onSave: (Reminder) -> Void
-    let onCancel: () -> Void
-
-    @State private var type: ReminderType = .feeding
-    @State private var title = ""
-    @State private var date = "2026-02-17"
-    @State private var time = "08:00"
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Тип") {
-                    Picker("Тип", selection: $type) {
-                        ForEach(ReminderType.allCases, id: \.self) { t in
-                            Text(t.label).tag(t)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                Section("Название") {
-                    TextField("Например: Утреннее кормление", text: $title)
-                }
-                Section("Дата") { TextField("Дата", text: $date) }
-                Section("Время") { TextField("Время", text: $time) }
-            }
-            .navigationTitle("Новое напоминание")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Добавить") {
-                        let petName = pets.first(where: { $0.id == selectedPetId })?.name ?? ""
-                        let r = Reminder(
-                            id: UUID().uuidString,
-                            petId: selectedPetId,
-                            petName: petName,
-                            type: type,
-                            title: title.isEmpty ? type.label : title,
-                            date: date,
-                            time: time,
-                            completed: false
-                        )
-                        onSave(r)
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct AddDiarySheet: View {
-    let petId: String
-    let onSave: (HealthDiaryEntry) -> Void
-    let onCancel: () -> Void
-
-    @State private var note = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Заметка") {
-                    TextEditor(text: $note)
-                        .frame(minHeight: 100)
-                }
-            }
-            .navigationTitle("Новая запись")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") {
-                        let e = HealthDiaryEntry(
-                            id: UUID().uuidString,
-                            petId: petId,
-                            date: "2026-02-17",
-                            note: note
-                        )
-                        onSave(e)
-                    }
-                    .disabled(note.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-    }
-}
-
-struct AddWeightSheet: View {
-    let petId: String
-    let onSave: (WeightRecord) -> Void
-    let onCancel: () -> Void
-
-    @State private var weight = ""
-    @State private var date = "2026-02-17"
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Вес (кг)") {
-                    TextField("0", text: $weight)
-                        .keyboardType(.decimalPad)
-                }
-                Section("Дата") { TextField("Дата", text: $date) }
-            }
-            .navigationTitle("Новая запись веса")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") {
-                        guard let w = Double(weight) else { return }
-                        onSave(WeightRecord(date: date, weight: w))
-                    }
-                    .disabled(weight.isEmpty)
-                }
-            }
         }
     }
 }

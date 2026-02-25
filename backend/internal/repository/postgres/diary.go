@@ -26,7 +26,7 @@ func (r *DiaryRepository) GetByPetID(ctx context.Context, petID, userID string) 
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.HealthDiaryEntry
+	list := make([]domain.HealthDiaryEntry, 0)
 	for rows.Next() {
 		var e domain.HealthDiaryEntry
 		if err := rows.Scan(&e.ID, &e.PetID, &e.Date, &e.Note); err != nil {

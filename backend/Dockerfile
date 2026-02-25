@@ -1,8 +1,9 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+RUN go install github.com/swaggo/swag/cmd/swag@latest && swag init -g cmd/server/main.go
 RUN CGO_ENABLED=0 GOOS=linux go build -o /server ./cmd/server
 
 FROM alpine:3.19

@@ -34,17 +34,27 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	kc := kserve.New(cfg.KServe.BaseURL)
-	var s3Client *s3.Client
-	if !cfg.S3.Disabled {
-		s3Client = s3.New(s3.Config{
-			Bucket:          cfg.S3.Bucket,
-			Region:          cfg.S3.Region,
-			Endpoint:        cfg.S3.Endpoint,
-			BaseURL:         cfg.S3.BaseURL,
-			AccessKeyID:     cfg.S3.AccessKeyID,
-			SecretAccessKey: cfg.S3.SecretAccessKey,
-		})
+	if !cfg.S3.S3Configured() {
+		msg := "S3 required at startup. Check .env (see config log for loaded path). Missing:"
+		if cfg.S3.Bucket == "" {
+			msg += " S3_BUCKET"
+		}
+		if cfg.S3.AccessKeyID == "" {
+			msg += " AWS_ACCESS_KEY_ID"
+		}
+		if cfg.S3.SecretAccessKey == "" {
+			msg += " AWS_SECRET_ACCESS_KEY"
+		}
+		return nil, fmt.Errorf("%s", msg)
 	}
+	s3Client := s3.New(s3.Config{
+		Bucket:          cfg.S3.Bucket,
+		Region:          cfg.S3.Region,
+		Endpoint:        cfg.S3.Endpoint,
+		BaseURL:         cfg.S3.BaseURL,
+		AccessKeyID:     cfg.S3.AccessKeyID,
+		SecretAccessKey: cfg.S3.SecretAccessKey,
+	})
 	petRepo := postgres.NewPetRepository(db)
 	reminderRepo := postgres.NewReminderRepository(db)
 	weightRepo := postgres.NewWeightRepository(db)

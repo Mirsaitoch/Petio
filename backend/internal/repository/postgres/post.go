@@ -34,7 +34,7 @@ func (r *PostRepository) List(ctx context.Context, userID string, club *string) 
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Post
+	list := make([]domain.Post, 0)
 	for rows.Next() {
 		var p domain.Post
 		var avatar, img sql.NullString
@@ -160,7 +160,7 @@ func (r *PostRepository) commentsByPostID(ctx context.Context, postID string) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Comment
+	list := make([]domain.Comment, 0)
 	for rows.Next() {
 		var c domain.Comment
 		var avatar sql.NullString

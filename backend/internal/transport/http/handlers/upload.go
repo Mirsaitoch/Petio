@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -81,7 +82,7 @@ func (h *UploadHandler) UploadPostImage(w http.ResponseWriter, r *http.Request) 
 
 func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, prefix string) {
 	if h.s3 == nil {
-		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 not configured")
+		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
 		return
 	}
 	if r.ContentLength > maxUploadSize {
@@ -106,6 +107,15 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		jsonError(w, http.StatusBadRequest, "only images (jpeg, png, gif, webp) allowed")
 		return
 	}
+	body, err := io.ReadAll(io.LimitReader(file, maxUploadSize))
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(body) == 0 {
+		jsonError(w, http.StatusBadRequest, "empty file")
+		return
+	}
 	ext := extByContentType(ct)
 	if ext == "" {
 		if e := strings.ToLower(path.Ext(header.Filename)); e == ".jpg" || e == ".jpeg" || e == ".png" || e == ".gif" || e == ".webp" {
@@ -118,7 +128,7 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		}
 	}
 	key := fmt.Sprintf("%s/%s/%s%s", prefix, userID, uuid.New().String(), ext)
-	urlStr, err := h.s3.Upload(r.Context(), key, file, ct)
+	urlStr, err := h.s3.Upload(r.Context(), key, body, ct)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return

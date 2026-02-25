@@ -35,7 +35,7 @@ func (r *ReminderRepository) List(ctx context.Context, userID string, petID *str
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Reminder
+	list := make([]domain.Reminder, 0)
 	for rows.Next() {
 		var rem domain.Reminder
 		if err := rows.Scan(&rem.ID, &rem.PetID, &rem.PetName, &rem.Type, &rem.Title, &rem.Date, &rem.Time, &rem.Completed); err != nil {

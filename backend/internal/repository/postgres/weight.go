@@ -26,7 +26,7 @@ func (r *WeightRepository) GetByPetID(ctx context.Context, petID, userID string)
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.WeightRecord
+	list := make([]domain.WeightRecord, 0)
 	for rows.Next() {
 		var w domain.WeightRecord
 		if err := rows.Scan(&w.Date, &w.Weight); err != nil {

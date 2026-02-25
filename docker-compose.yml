@@ -11,7 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 3s
       timeout: 5s
       retries: 5
 
@@ -21,10 +21,15 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    # Переменные S3 (S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) берутся из backend/.env
+    env_file:
+      - backend/.env
     environment:
       HTTP_ADDR: ":8080"
       DATABASE_URL: "postgres://postgres:postgres@postgres:5432/petio?sslmode=disable"
-      JWT_SECRET: "change-me-in-production"
+      JWT_SECRET: "petio-jwt-secret-change-in-prod"
+      S3_REGION: "ru-central1"
+      S3_ENDPOINT: "https://storage.yandexcloud.net"
     depends_on:
       postgres:
         condition: service_healthy

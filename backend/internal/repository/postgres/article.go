@@ -24,7 +24,7 @@ func (r *ArticleRepository) List(ctx context.Context) ([]domain.Article, error) 
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Article
+	list := make([]domain.Article, 0)
 	for rows.Next() {
 		var a domain.Article
 		var img sql.NullString

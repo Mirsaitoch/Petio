@@ -51,7 +51,7 @@ func (r *PetRepository) List(ctx context.Context, userID string) ([]domain.Pet, 
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Pet
+	list := make([]domain.Pet, 0)
 	for rows.Next() {
 		var p domain.Pet
 		var photo sql.NullString
@@ -141,7 +141,7 @@ func (r *PetRepository) vaccinationsByPetID(ctx context.Context, petID string) (
 		return nil, err
 	}
 	defer rows.Close()
-	var list []domain.Vaccination
+	list := make([]domain.Vaccination, 0)
 	for rows.Next() {
 		var v domain.Vaccination
 		if err := rows.Scan(&v.ID, &v.Name, &v.Date, &v.NextDate); err != nil {

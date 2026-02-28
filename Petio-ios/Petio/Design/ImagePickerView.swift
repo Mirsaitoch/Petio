@@ -86,6 +86,76 @@ func saveImageLocally(_ image: UIImage) -> String? {
     return fileURL.absoluteString
 }
 
+// MARK: - PostImagePickerButton
+
+struct PostImagePickerButton: View {
+    @Binding var selectedImage: UIImage?
+
+    @State private var showOptions = false
+    @State private var showGallery = false
+    @State private var showCamera = false
+    @State private var selectedItem: PhotosPickerItem?
+
+    var body: some View {
+        Button { showOptions = true } label: {
+            if let img = selectedImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 80, height: 80)
+                    .clipped()
+                    .cornerRadius(10)
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            selectedImage = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.5).clipShape(Circle()))
+                        }
+                        .padding(4)
+                    }
+            } else {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(PetCareTheme.border, lineWidth: 1.5)
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 28))
+                            .foregroundColor(PetCareTheme.muted)
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .confirmationDialog("Фото", isPresented: $showOptions, titleVisibility: .visible) {
+            Button("Выбрать из галереи") { showGallery = true }
+            Button("Сделать фото") { showCamera = true }
+            if selectedImage != nil {
+                Button("Убрать фото", role: .destructive) { selectedImage = nil }
+            }
+            Button("Отмена", role: .cancel) { }
+        }
+        .photosPicker(isPresented: $showGallery, selection: $selectedItem, matching: .images)
+        .sheet(isPresented: $showCamera) {
+            CameraPickerView { image in
+                selectedImage = image
+                showCamera = false
+            } onCancel: {
+                showCamera = false
+            }
+        }
+        .onChange(of: selectedItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    selectedImage = image
+                }
+            }
+        }
+    }
+}
+
 // MARK: - CameraPickerView
 
 struct CameraPickerView: UIViewControllerRepresentable {

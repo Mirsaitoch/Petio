@@ -239,15 +239,31 @@ final class AppState: ObservableObject {
         }
     }
 
-    func togglePostLike(postId: String) {
+    func togglePostLike(postId: String) async {
         guard let i = posts.firstIndex(where: { $0.id == postId }) else { return }
         posts[i].liked.toggle()
         posts[i].likes += posts[i].liked ? 1 : -1
+        let newLiked = posts[i].liked
+        do {
+            try await api.likePost(id: postId, liked: newLiked)
+        } catch {
+            // revert optimistic update on error
+            guard let j = posts.firstIndex(where: { $0.id == postId }) else { return }
+            posts[j].liked.toggle()
+            posts[j].likes += posts[j].liked ? 1 : -1
+        }
     }
 
-    func addComment(postId: String, _ comment: Comment) {
+    func addComment(postId: String, _ comment: Comment) async {
         guard let i = posts.firstIndex(where: { $0.id == postId }) else { return }
         posts[i].comments.append(comment)
+        do {
+            try await api.addComment(postId: postId, comment)
+        } catch {
+            // revert optimistic update on error
+            guard let j = posts.firstIndex(where: { $0.id == postId }) else { return }
+            posts[j].comments.removeAll { $0.id == comment.id }
+        }
     }
 
     func addPost(_ post: Post) async {

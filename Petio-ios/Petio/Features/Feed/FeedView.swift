@@ -121,10 +121,10 @@ struct FeedView: View {
                             content: text,
                             timestamp: "Только что"
                         )
-                        app.addComment(postId: post.id, c)
+                        Task { await app.addComment(postId: post.id, c) }
                         commentText[post.id] = ""
                     },
-                    onLike: { app.togglePostLike(postId: post.id) }
+                    onLike: { Task { await app.togglePostLike(postId: post.id) } }
                 )
                 .padding(.horizontal, 20)
                 .transition(.asymmetric(

@@ -22,6 +22,7 @@ struct HealthView: View {
     @State private var showAddReminder = false
     @State private var showAddDiary = false
     @State private var showAddWeight = false
+    @State private var showAddPet = false
     
     private var selectedPet: Pet? { app.selectedPet }
     private static let filterToRaw: [String: String] = [
@@ -49,12 +50,22 @@ struct HealthView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            tabs
-            ScrollView(showsIndicators: false) {
-                tabContent
+            if app.pets.isEmpty {
+                noPetsContent
+            } else {
+                tabs
+                ScrollView(showsIndicators: false) {
+                    tabContent
+                }
             }
         }
         .background(PetCareTheme.background)
+        .sheet(isPresented: $showAddPet) {
+            AddPetSheet { pet in
+                Task { await app.addPet(pet) }
+                showAddPet = false
+            } onCancel: { showAddPet = false }
+        }
         .sheet(isPresented: $showAddReminder) {
             AddReminderSheet(selectedPetId: app.selectedPetId, pets: app.pets) { r in
                 Task { await app.addReminder(r) }
@@ -82,33 +93,35 @@ struct HealthView: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                
-                Button {
-                    showPetPicker.toggle()
-                } label: {
-                    HStack(spacing: 8) {
-                        AvatarView(
-                            url: selectedPet?.photo,
-                            placeholder: "🐾",
-                            size: 28
-                        )
-                        Text(selectedPet?.name ?? "Выберите питомца")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
-                            .rotationEffect(.degrees(showPetPicker ? 180 : 0))
+
+                if !app.pets.isEmpty {
+                    Button {
+                        showPetPicker.toggle()
+                    } label: {
+                        HStack(spacing: 8) {
+                            AvatarView(
+                                url: selectedPet?.photo,
+                                placeholder: "🐾",
+                                size: 28
+                            )
+                            Text(selectedPet?.name ?? "Выберите питомца")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.7))
+                                .rotationEffect(.degrees(showPetPicker ? 180 : 0))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .background(PetCareTheme.primary)
-            
+
             if showPetPicker {
                 VStack(spacing: 4) {
                     ForEach(Array(app.pets.enumerated()), id: \.element.id) { index, p in
@@ -196,6 +209,31 @@ struct HealthView: View {
         }
     }
     
+    private var noPetsContent: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "pawprint.circle")
+                .font(.system(size: 64))
+                .foregroundColor(PetCareTheme.primary.opacity(0.3))
+            VStack(spacing: 8) {
+                Text("Сначала добавьте питомца")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PetCareTheme.primary)
+                Text("Напоминания, вес и дневник здоровья привязаны к конкретному питомцу")
+                    .font(.system(size: 13))
+                    .foregroundColor(PetCareTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            PetCareDashedButton(title: "Добавить питомца", icon: "plus") {
+                showAddPet = true
+            }
+            .padding(.horizontal, 20)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private var remindersContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {

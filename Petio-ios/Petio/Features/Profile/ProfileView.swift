@@ -198,12 +198,6 @@ struct ProfileView: View {
 
     private var myPetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PetCareSectionHeader(
-                title: "Мои питомцы",
-                actionTitle: "Все",
-                action: { }
-            )
-            .padding(.horizontal, 20)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(app.pets) { pet in

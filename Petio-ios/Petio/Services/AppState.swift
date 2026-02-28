@@ -44,7 +44,7 @@ final class AppState: ObservableObject {
         do {
             pets = try await api.fetchPets()
         } catch {
-            pets = MockData.pets
+            // keep current state on error
         }
     }
 
@@ -52,7 +52,7 @@ final class AppState: ObservableObject {
         do {
             reminders = try await api.fetchReminders(petId: nil)
         } catch {
-            reminders = MockData.reminders
+            // keep current state on error
         }
     }
 
@@ -62,36 +62,27 @@ final class AppState: ObservableObject {
                 let list = try await api.fetchWeightHistory(petId: id)
                 weightHistory[id] = list
             } catch {
-                weightHistory[id] = MockData.weightHistory[id] ?? []
+                weightHistory[id] = weightHistory[id] ?? []
             }
-        }
-        if weightHistory.isEmpty {
-            weightHistory = MockData.weightHistory
         }
     }
 
     func loadDiary() async {
-        if pets.isEmpty {
-            diary = MockData.diary
-            return
-        }
+        guard !pets.isEmpty else { return }
         var all: [HealthDiaryEntry] = []
         for id in pets.map(\.id) {
-            do {
-                let entries = try await api.fetchDiary(petId: id)
+            if let entries = try? await api.fetchDiary(petId: id) {
                 all.append(contentsOf: entries)
-            } catch {
-                all.append(contentsOf: MockData.diary.filter { $0.petId == id })
             }
         }
-        diary = all.isEmpty ? MockData.diary : all
+        diary = all
     }
 
     func loadArticles() async {
         do {
             articles = try await api.fetchArticles()
         } catch {
-            articles = MockData.articles
+            // keep current state on error
         }
     }
 
@@ -99,7 +90,7 @@ final class AppState: ObservableObject {
         do {
             posts = try await api.fetchPosts(club: nil)
         } catch {
-            posts = MockData.posts
+            // keep current state on error
         }
     }
 
@@ -107,7 +98,7 @@ final class AppState: ObservableObject {
         do {
             user = try await api.fetchProfile()
         } catch {
-            user = MockData.user
+            // keep current state on error
         }
     }
 
@@ -254,13 +245,19 @@ final class AppState: ObservableObject {
     }
 
     func todayReminders() -> [Reminder] {
-        let today = "2026-02-17"
+        let today = Self.dateString(from: Date())
         return reminders.filter { $0.date == today }
     }
 
     func upcomingReminders() -> [Reminder] {
-        let today = "2026-02-17"
+        let today = Self.dateString(from: Date())
         return reminders.filter { $0.date > today }.prefix(3).map { $0 }
+    }
+
+    private static func dateString(from date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: date)
     }
 
     func reminders(forPetId id: String, typeFilter: String?) -> [Reminder] {

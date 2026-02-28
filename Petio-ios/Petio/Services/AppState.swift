@@ -89,14 +89,7 @@ final class AppState: ObservableObject {
 
     func loadPosts() async {
         do {
-            let fetched = try await api.fetchPosts(club: nil)
-            let f = ISO8601DateFormatter()
-            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            posts = fetched.sorted {
-                let d0 = f.date(from: $0.timestamp) ?? .distantPast
-                let d1 = f.date(from: $1.timestamp) ?? .distantPast
-                return d0 > d1
-            }
+            posts = try await api.fetchPosts(club: nil)
         } catch {
             // keep current state on error
         }

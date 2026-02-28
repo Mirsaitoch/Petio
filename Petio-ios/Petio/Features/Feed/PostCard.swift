@@ -8,15 +8,9 @@
 import SwiftUI
 
 private func relativeTimestamp(_ iso: String) -> String {
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let date = f.date(from: iso) ?? {
-        f.formatOptions = [.withInternetDateTime]
-        return f.date(from: iso)
-    }()
-    guard let date else { return iso }
+    guard let date = parsePostDate(iso) else { return iso }
     let s = Int(-date.timeIntervalSinceNow)
-    if s < 60  { return "Только что" }
+    if s < 60   { return "Только что" }
     if s < 3600 { return "\(s / 60) мин. назад" }
     if s < 86400 { return "\(s / 3600) ч. назад" }
     return "\(s / 86400) дн. назад"

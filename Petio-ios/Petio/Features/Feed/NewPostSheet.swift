@@ -57,7 +57,7 @@ struct NewPostSheet: View {
                                 likes: 0,
                                 comments: [],
                                 club: club,
-                                timestamp: "Только что",
+                                timestamp: ISO8601DateFormatter().string(from: Date()),
                                 liked: false
                             )
                             onSave(post, selectedImage)

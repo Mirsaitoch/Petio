@@ -7,6 +7,21 @@
 
 import SwiftUI
 
+private func relativeTimestamp(_ iso: String) -> String {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let date = f.date(from: iso) ?? {
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: iso)
+    }()
+    guard let date else { return iso }
+    let s = Int(-date.timeIntervalSinceNow)
+    if s < 60  { return "Только что" }
+    if s < 3600 { return "\(s / 60) мин. назад" }
+    if s < 86400 { return "\(s / 3600) ч. назад" }
+    return "\(s / 86400) дн. назад"
+}
+
 struct PostCard: View {
     let post: Post
     let isCommentsExpanded: Bool
@@ -30,7 +45,7 @@ struct PostCard: View {
                             .padding(.vertical, 2)
                             .background(PetCareTheme.secondary)
                             .clipShape(Capsule())
-                        Text(post.timestamp)
+                        Text(relativeTimestamp(post.timestamp))
                             .font(.system(size: 10))
                             .foregroundColor(PetCareTheme.muted)
                     }

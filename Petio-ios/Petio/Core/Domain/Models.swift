@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Pet
 
-struct Pet: Identifiable, Equatable {
+struct Pet: Identifiable, Equatable, Codable {
     let id: String
     var name: String
     var species: String
@@ -22,7 +22,7 @@ struct Pet: Identifiable, Equatable {
     var features: [String]
 }
 
-struct Vaccination: Identifiable, Equatable {
+struct Vaccination: Identifiable, Equatable, Codable {
     let id: String
     var name: String
     var date: String
@@ -31,7 +31,7 @@ struct Vaccination: Identifiable, Equatable {
 
 // MARK: - Reminder
 
-struct Reminder: Identifiable, Equatable {
+struct Reminder: Identifiable, Equatable, Codable {
     let id: String
     let petId: String
     var petName: String
@@ -60,12 +60,12 @@ enum ReminderType: String, Codable, CaseIterable {
 
 // MARK: - Health
 
-struct WeightRecord: Equatable {
+struct WeightRecord: Equatable, Codable {
     var date: String
     var weight: Double
 }
 
-struct HealthDiaryEntry: Identifiable, Equatable {
+struct HealthDiaryEntry: Identifiable, Equatable, Codable {
     let id: String
     let petId: String
     var date: String
@@ -74,7 +74,7 @@ struct HealthDiaryEntry: Identifiable, Equatable {
 
 // MARK: - Article
 
-struct Article: Identifiable, Equatable {
+struct Article: Identifiable, Equatable, Codable {
     let id: String
     var title: String
     var description: String
@@ -87,7 +87,7 @@ struct Article: Identifiable, Equatable {
 
 // MARK: - Chat
 
-struct ChatMessage: Identifiable, Equatable {
+struct ChatMessage: Identifiable, Equatable, Codable {
     let id: String
     var role: ChatRole
     var content: String
@@ -101,7 +101,7 @@ enum ChatRole: String, Codable {
 
 // MARK: - Feed
 
-struct Comment: Identifiable, Equatable {
+struct Comment: Identifiable, Equatable, Codable {
     let id: String
     var author: String
     var avatar: String?
@@ -109,7 +109,7 @@ struct Comment: Identifiable, Equatable {
     var timestamp: String
 }
 
-struct Post: Identifiable, Equatable {
+struct Post: Identifiable, Equatable, Codable {
     let id: String
     var author: String
     var avatar: String?
@@ -124,7 +124,7 @@ struct Post: Identifiable, Equatable {
 
 // MARK: - User
 
-struct UserProfile: Equatable {
+struct UserProfile: Equatable, Codable {
     var name: String
     var username: String
     var avatar: String?

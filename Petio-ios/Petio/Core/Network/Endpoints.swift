@@ -2,8 +2,7 @@
 //  Endpoints.swift
 //  Petio
 //
-//  Описание API-эндпоинтов. Подключение реального бэкенда — подставить базовый URL и вызывать через APIClient.
-//
+
 
 import Foundation
 

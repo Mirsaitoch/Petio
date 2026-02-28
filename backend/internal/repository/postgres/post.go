@@ -20,15 +20,15 @@ func NewPostRepository(db *sql.DB) *PostRepository {
 func (r *PostRepository) List(ctx context.Context, userID string, club *string) ([]domain.Post, error) {
 	var rows *sql.Rows
 	var err error
+	const baseQuery = `
+		SELECT p.id, p.user_id, COALESCE(NULLIF(u.username,''), p.author), u.avatar,
+		       p.content, p.image, p.likes, p.club, p.timestamp
+		FROM posts p
+		LEFT JOIN users u ON u.id = p.user_id`
 	if club != nil && *club != "" && *club != "Все" {
-		rows, err = r.db.QueryContext(ctx,
-			`SELECT id, user_id, author, avatar, content, image, likes, club, timestamp FROM posts WHERE club = $1 ORDER BY timestamp DESC`,
-			*club,
-		)
+		rows, err = r.db.QueryContext(ctx, baseQuery+` WHERE p.club = $1 ORDER BY p.timestamp DESC`, *club)
 	} else {
-		rows, err = r.db.QueryContext(ctx,
-			`SELECT id, user_id, author, avatar, content, image, likes, club, timestamp FROM posts ORDER BY timestamp DESC`,
-		)
+		rows, err = r.db.QueryContext(ctx, baseQuery+` ORDER BY p.timestamp DESC`)
 	}
 	if err != nil {
 		return nil, err
@@ -61,7 +61,11 @@ func (r *PostRepository) GetByID(ctx context.Context, id, userID string) (*domai
 	var p domain.Post
 	var avatar, img sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, author, avatar, content, image, likes, club, timestamp FROM posts WHERE id = $1`,
+		`SELECT p.id, p.user_id, COALESCE(NULLIF(u.username,''), p.author), u.avatar,
+		        p.content, p.image, p.likes, p.club, p.timestamp
+		 FROM posts p
+		 LEFT JOIN users u ON u.id = p.user_id
+		 WHERE p.id = $1`,
 		id,
 	).Scan(&p.ID, &p.UserID, &p.Author, &avatar, &p.Content, &img, &p.Likes, &p.Club, &p.Timestamp)
 	if err == sql.ErrNoRows {

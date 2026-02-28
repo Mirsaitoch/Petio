@@ -20,18 +20,32 @@ struct AvatarView: View {
 
     var body: some View {
         Group {
-            if let urlString = url, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .failure, .empty:
-                        placeholderView
-                    @unknown default:
-                        placeholderView
+            if let urlString = url {
+                if urlString.hasPrefix("ava_") {
+                    Image(urlString)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if urlString.hasPrefix("file://"),
+                          let path = URL(string: urlString)?.path,
+                          let uiImage = UIImage(contentsOfFile: path) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if let remoteURL = URL(string: urlString) {
+                    AsyncImage(url: remoteURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure, .empty:
+                            placeholderView
+                        @unknown default:
+                            placeholderView
+                        }
                     }
+                } else {
+                    placeholderView
                 }
             } else {
                 placeholderView
@@ -62,16 +76,30 @@ struct CircleAvatarView: View {
 
     var body: some View {
         Group {
-            if let urlString = url, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    default:
-                        fallbackView
+            if let urlString = url {
+                if urlString.hasPrefix("ava_") {
+                    Image(urlString)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if urlString.hasPrefix("file://"),
+                          let path = URL(string: urlString)?.path,
+                          let uiImage = UIImage(contentsOfFile: path) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if let remoteURL = URL(string: urlString) {
+                    AsyncImage(url: remoteURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        default:
+                            fallbackView
+                        }
                     }
+                } else {
+                    fallbackView
                 }
             } else {
                 fallbackView

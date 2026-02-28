@@ -38,7 +38,7 @@ struct NewPostSheet: View {
                     Button("Опубликовать") {
                         let post = Post(
                             id: UUID().uuidString,
-                            author: user.name,
+                            author: user.username,
                             avatar: user.avatar,
                             content: content,
                             image: nil,

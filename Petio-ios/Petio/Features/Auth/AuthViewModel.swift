@@ -23,7 +23,8 @@ final class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let token = try await authRequest(path: "/auth/login", email: email, password: password)
+            let token = try await authRequest(path: "/auth/login", body: ["email": email, "password": password])
+            UserDefaults.standard.set(email, forKey: "petio_session_email")
             authManager.saveToken(token)
         } catch {
             errorMessage = describe(error)
@@ -31,11 +32,19 @@ final class AuthViewModel: ObservableObject {
         isLoading = false
     }
 
-    func register(email: String, password: String) async {
+    func register(email: String, password: String, username: String) async {
         isLoading = true
         errorMessage = nil
+        let finalUsername = username.trimmingCharacters(in: .whitespaces).isEmpty
+            ? Self.generateZooUsername()
+            : username
         do {
-            let token = try await authRequest(path: "/auth/register", email: email, password: password)
+            let token = try await authRequest(
+                path: "/auth/register",
+                body: ["email": email, "password": password, "username": finalUsername]
+            )
+            UserDefaults.standard.set(email, forKey: "petio_session_email")
+            UserDefaults.standard.set(finalUsername, forKey: "petio_session_username")
             authManager.saveToken(token)
         } catch {
             errorMessage = describe(error)
@@ -45,12 +54,19 @@ final class AuthViewModel: ObservableObject {
 
     // MARK: - Private
 
-    private func authRequest(path: String, email: String, password: String) async throws -> String {
+    static func generateZooUsername() -> String {
+        let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk", "puma", "lynx"]
+        let animal = animals.randomElement() ?? "pet"
+        let number = Int.random(in: 10000...99999)
+        return "\(animal)-\(number)"
+    }
+
+    private func authRequest(path: String, body: [String: String]) async throws -> String {
         guard let url = URL(string: baseURL + path) else { throw APIError.invalidURL }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidURL }
         guard (200..<300).contains(http.statusCode) else { throw APIError.server(http.statusCode) }

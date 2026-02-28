@@ -382,6 +382,8 @@
 				DEVELOPMENT_TEAM = 5KT477LB69;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Сделайте фото вашего питомца";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Выберите фото вашего питомца из галереи";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -415,6 +417,8 @@
 				DEVELOPMENT_TEAM = 5KT477LB69;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Сделайте фото вашего питомца";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Выберите фото вашего питомца из галереи";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

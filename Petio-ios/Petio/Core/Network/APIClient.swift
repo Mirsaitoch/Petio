@@ -2,8 +2,6 @@
 //  APIClient.swift
 //  Petio
 //
-//  Сетевой слой: протокол клиента API. Реализация — реальный HTTP или Mock.
-//
 
 import Foundation
 
@@ -14,7 +12,6 @@ enum APIError: Error {
     case server(Int)
 }
 
-/// Протокол API-клиента. Реальные ручки подключаются здесь; пока используется MockAPIClient.
 protocol APIClientProtocol: Sendable {
     func fetchPets() async throws -> [Pet]
     func fetchPet(id: String) async throws -> Pet?

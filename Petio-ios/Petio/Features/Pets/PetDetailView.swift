@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct PetDetailView: View {
     let petId: String
@@ -88,10 +89,24 @@ struct PetDetailView: View {
 
     private func heroSection(pet: Pet) -> some View {
         ZStack(alignment: .bottomLeading) {
-            if let url = pet.photo, let u = URL(string: url) {
-                AsyncImage(url: u) { phase in
-                    if let img = phase.image {
-                        img.resizable().aspectRatio(contentMode: .fill)
+            if let urlString = pet.photo {
+                Group {
+                    if urlString.hasPrefix("file://"),
+                       let path = URL(string: urlString)?.path,
+                       let uiImage = UIImage(contentsOfFile: path) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else if let u = URL(string: urlString) {
+                        AsyncImage(url: u) { phase in
+                            if let img = phase.image {
+                                img.resizable().aspectRatio(contentMode: .fill)
+                            } else {
+                                Rectangle()
+                                    .fill(PetCareTheme.secondary)
+                                    .overlay(Text(speciesEmoji(pet.species)).font(.system(size: 60)))
+                            }
+                        }
                     } else {
                         Rectangle()
                             .fill(PetCareTheme.secondary)
@@ -279,19 +294,46 @@ struct EditPetSheet: View {
     @State private var age: String = ""
     @State private var weight: Double = 0
     @State private var featuresText: String = ""
+    @State private var photoPath: String? = nil
+
+    private func speciesEmoji(_ s: String) -> String {
+        switch s {
+        case "Собака": return "🐕"
+        case "Кошка": return "🐱"
+        case "Птица": return "🦜"
+        case "Кролик": return "🐰"
+        default: return "🐾"
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Имя") { TextField("Имя", text: $name) }
-                Section("Порода") { TextField("Порода", text: $breed) }
-                Section("Возраст") { TextField("Возраст", text: $age) }
-                Section("Вес (кг)") {
-                    TextField("Вес", value: $weight, format: .number)
-                        .keyboardType(.decimalPad)
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    AvatarPickerButton(
+                        photoPath: $photoPath,
+                        placeholder: speciesEmoji(pet.species),
+                        size: 88
+                    )
+                    Text("Нажмите чтобы изменить фото")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                Section("Особенности (через запятую)") {
-                    TextField("Особенности", text: $featuresText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(Color(UIColor.systemGroupedBackground))
+
+                Form {
+                    Section("Имя") { TextField("Имя", text: $name) }
+                    Section("Порода") { TextField("Порода", text: $breed) }
+                    Section("Возраст") { TextField("Возраст", text: $age) }
+                    Section("Вес (кг)") {
+                        TextField("Вес", value: $weight, format: .number)
+                            .keyboardType(.decimalPad)
+                    }
+                    Section("Особенности (через запятую)") {
+                        TextField("Особенности", text: $featuresText)
+                    }
                 }
             }
             .onAppear {
@@ -300,6 +342,7 @@ struct EditPetSheet: View {
                 age = pet.age
                 weight = pet.weight
                 featuresText = pet.features.joined(separator: ", ")
+                photoPath = pet.photo
             }
             .navigationTitle("Редактировать")
             .navigationBarTitleDisplayMode(.inline)
@@ -312,6 +355,7 @@ struct EditPetSheet: View {
                         p.breed = breed
                         p.age = age
                         p.weight = weight
+                        p.photo = photoPath
                         p.features = featuresText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                         onSave(p)
                     }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct PetListViewModel: View {
     @EnvironmentObject private var app: AppState
@@ -116,29 +117,56 @@ struct AddPetSheet: View {
     @State private var age = ""
     @State private var weight = ""
     @State private var features = ""
+    @State private var photoPath: String? = nil
 
     private let speciesList = ["Собака", "Кошка", "Птица", "Кролик", "Рыбка", "Другое"]
 
+    private func speciesEmoji(_ s: String) -> String {
+        switch s {
+        case "Собака": return "🐕"
+        case "Кошка": return "🐱"
+        case "Птица": return "🦜"
+        case "Кролик": return "🐰"
+        default: return "🐾"
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Имя *") {
-                    TextField("Введите имя", text: $name)
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    AvatarPickerButton(
+                        photoPath: $photoPath,
+                        placeholder: speciesEmoji(species),
+                        size: 88
+                    )
+                    Text("Нажмите чтобы добавить фото")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                Section("Вид") {
-                    Picker("Вид", selection: $species) {
-                        ForEach(speciesList, id: \.self) { Text($0).tag($0) }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(Color(UIColor.systemGroupedBackground))
+
+                Form {
+                    Section("Имя *") {
+                        TextField("Введите имя", text: $name)
                     }
-                    .pickerStyle(.menu)
-                }
-                Section("Порода") { TextField("Порода", text: $breed) }
-                Section("Возраст") { TextField("Напр.: 2 года", text: $age) }
-                Section("Вес (кг)") {
-                    TextField("0", text: $weight)
-                        .keyboardType(.decimalPad)
-                }
-                Section("Особенности (через запятую)") {
-                    TextField("Аллергия, любит играть...", text: $features)
+                    Section("Вид") {
+                        Picker("Вид", selection: $species) {
+                            ForEach(speciesList, id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    Section("Порода") { TextField("Порода", text: $breed) }
+                    Section("Возраст") { TextField("Напр.: 2 года", text: $age) }
+                    Section("Вес (кг)") {
+                        TextField("0", text: $weight)
+                            .keyboardType(.decimalPad)
+                    }
+                    Section("Особенности (через запятую)") {
+                        TextField("Аллергия, любит играть...", text: $features)
+                    }
                 }
             }
             .navigationTitle("Новый питомец")
@@ -156,7 +184,7 @@ struct AddPetSheet: View {
                             breed: breed.isEmpty ? "Не указана" : breed,
                             age: age.isEmpty ? "Неизвестно" : age,
                             weight: Double(weight) ?? 0,
-                            photo: nil,
+                            photo: photoPath,
                             birthDate: "",
                             vaccinations: [],
                             features: features.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }

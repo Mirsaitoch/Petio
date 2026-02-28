@@ -10,12 +10,21 @@ struct RegisterView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var email = ""
+    @State private var username = ""
     @State private var password = ""
     @State private var confirmPassword = ""
 
     private var passwordsMatch: Bool { password == confirmPassword }
+    private var isUsernameValid: Bool {
+        username.trimmingCharacters(in: .whitespaces).isEmpty ||
+        username.range(of: "^[a-zA-Z0-9_-]+$", options: .regularExpression) != nil
+    }
     private var canSubmit: Bool {
-        !email.isEmpty && password.count >= 6 && passwordsMatch && !viewModel.isLoading
+        !email.isEmpty && password.count >= 6 && passwordsMatch && isUsernameValid && !viewModel.isLoading
+    }
+
+    private var usernamePlaceholder: String {
+        AuthViewModel.generateZooUsername()
     }
 
     var body: some View {
@@ -47,6 +56,43 @@ struct RegisterView: View {
                             .background(PetCareTheme.inputBackground)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.border))
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text("Никнейм")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(PetCareTheme.muted)
+                            Text("· необязательно")
+                                .font(.system(size: 12))
+                                .foregroundColor(PetCareTheme.muted.opacity(0.6))
+                        }
+                        HStack(spacing: 0) {
+                            Text("@")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(PetCareTheme.muted)
+                                .padding(.leading, 14)
+                            TextField(usernamePlaceholder, text: $username)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled()
+                                .padding(14)
+                        }
+                        .background(PetCareTheme.inputBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12).stroke(
+                                !isUsernameValid ? Color.red : PetCareTheme.border
+                            )
+                        )
+                        if !isUsernameValid {
+                            Text("Только буквы, цифры, - и _")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                        } else if username.isEmpty {
+                            Text("Оставьте пустым — получите случайный ник в зоо-стиле")
+                                .font(.system(size: 12))
+                                .foregroundColor(PetCareTheme.muted.opacity(0.7))
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -93,7 +139,7 @@ struct RegisterView: View {
                     PetCarePrimaryButton(
                         title: viewModel.isLoading ? "Регистрация..." : "Зарегистрироваться"
                     ) {
-                        Task { await viewModel.register(email: email, password: password) }
+                        Task { await viewModel.register(email: email, password: password, username: username) }
                     }
                     .disabled(!canSubmit)
                     .opacity(canSubmit ? 1 : 0.6)

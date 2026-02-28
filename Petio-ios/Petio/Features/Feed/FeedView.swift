@@ -116,15 +116,15 @@ struct FeedView: View {
                         guard !text.isEmpty else { return }
                         let c = Comment(
                             id: UUID().uuidString,
-                            author: app.user.name,
+                            author: app.user.username,
                             avatar: app.user.avatar,
                             content: text,
                             timestamp: "Только что"
                         )
-                        app.addComment(postId: post.id, c)
+                        Task { await app.addComment(postId: post.id, c) }
                         commentText[post.id] = ""
                     },
-                    onLike: { app.togglePostLike(postId: post.id) }
+                    onLike: { Task { await app.togglePostLike(postId: post.id) } }
                 )
                 .padding(.horizontal, 20)
                 .transition(.asymmetric(

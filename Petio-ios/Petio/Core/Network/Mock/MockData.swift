@@ -160,8 +160,8 @@ enum MockData {
 
     static var user: UserProfile {
         UserProfile(
-            name: "Елена Смирнова",
-            username: "@elena_pets",
+            username: "elena_pets",
+            email: "elena@example.com",
             avatar: userAvatar,
             bio: "Люблю животных! Хозяйка Барона, Мурки и Кеши",
             petsCount: 3,

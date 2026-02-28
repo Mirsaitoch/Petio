@@ -95,9 +95,11 @@ struct ProfileView: View {
                         isCircle: true
                     )
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(app.user.username.isEmpty ? "Пользователь" : "@\(app.user.username)")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
+                        if !app.user.username.isEmpty {
+                            Text("@\(app.user.username)")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
                         if let email = app.user.email, !email.isEmpty {
                             Text(email)
                                 .font(.system(size: 11))
@@ -189,7 +191,7 @@ struct ProfileView: View {
     @ViewBuilder
     private var profileContent: some View {
         VStack(alignment: .leading, spacing: 16) {
-            myPetsSection
+//            myPetsSection
             postsList
             settingsSection
         }

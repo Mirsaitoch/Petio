@@ -44,8 +44,10 @@ struct FeedView: View {
         .background(PetCareTheme.background)
         .sheet(isPresented: $showNewPost) {
             NewPostSheet(user: app.user) { post, image in
-                Task { await app.addPost(post, image: image) }
-                showNewPost = false
+                Task {
+                    await app.addPost(post, image: image)
+                    showNewPost = false
+                }
             } onCancel: { showNewPost = false }
         }
     }

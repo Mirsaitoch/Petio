@@ -12,6 +12,8 @@ struct NewPostSheet: View {
     let onSave: (Post, UIImage?) -> Void
     let onCancel: () -> Void
 
+    @EnvironmentObject private var app: AppState
+
     @State private var content = ""
     @State private var club = "Собаки"
     @State private var selectedImage: UIImage?
@@ -37,24 +39,31 @@ struct NewPostSheet: View {
             .navigationTitle("Новый пост")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена", action: onCancel)
+                        .disabled(app.isPostUploading)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Опубликовать") {
-                        let post = Post(
-                            id: UUID().uuidString,
-                            author: user.username,
-                            avatar: user.avatar,
-                            content: content,
-                            image: nil,
-                            likes: 0,
-                            comments: [],
-                            club: club,
-                            timestamp: "Только что",
-                            liked: false
-                        )
-                        onSave(post, selectedImage)
+                    if app.isPostUploading {
+                        ProgressView()
+                    } else {
+                        Button("Опубликовать") {
+                            let post = Post(
+                                id: UUID().uuidString,
+                                author: user.username,
+                                avatar: user.avatar,
+                                content: content,
+                                image: nil,
+                                likes: 0,
+                                comments: [],
+                                club: club,
+                                timestamp: "Только что",
+                                liked: false
+                            )
+                            onSave(post, selectedImage)
+                        }
+                        .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

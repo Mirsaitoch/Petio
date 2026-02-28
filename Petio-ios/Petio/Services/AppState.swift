@@ -266,9 +266,14 @@ final class AppState: ObservableObject {
         }
     }
 
-    func addPost(_ post: Post) async {
+    func addPost(_ post: Post, image: UIImage? = nil) async {
         do {
-            let added = try await api.addPost(post)
+            let added: Post
+            if let image, let imageData = image.jpegData(compressionQuality: 0.8) {
+                added = try await api.addPostWithImage(post, imageData: imageData)
+            } else {
+                added = try await api.addPost(post)
+            }
             posts.insert(added, at: 0)
         } catch {
             posts.insert(post, at: 0)

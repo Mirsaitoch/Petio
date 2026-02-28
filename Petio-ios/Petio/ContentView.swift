@@ -15,12 +15,23 @@ struct ContentView: View {
         Group {
             if authManager.isAuthenticated {
                 AppTabView()
-                    .task { await appState.loadAll() }
             } else {
                 AuthView()
             }
         }
         .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+        .onChange(of: authManager.isAuthenticated) { _, isAuth in
+            if isAuth {
+                Task { await appState.loadAll() }
+            } else {
+                appState.resetUserSession()
+            }
+        }
+        .task {
+            if authManager.isAuthenticated {
+                await appState.loadAll()
+            }
+        }
     }
 }
 

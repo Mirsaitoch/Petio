@@ -22,7 +22,7 @@ final class AppState: ObservableObject {
     @Published var articles: [Article] = []
     @Published var posts: [Post] = []
     @Published var chatMessages: [ChatMessage] = []
-    @Published var user: UserProfile = UserProfile(name: "", username: "", avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+    @Published var user: UserProfile = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     @Published var selectedPetId: String = ""
 
     // MARK: - Load from API (business logic)
@@ -96,10 +96,54 @@ final class AppState: ObservableObject {
 
     func loadProfile() async {
         do {
-            user = try await api.fetchProfile()
+            var profile = try await api.fetchProfile()
+
+            // Подставляем email из сессии, если сервер не вернул
+            if (profile.email ?? "").isEmpty,
+               let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
+                profile.email = savedEmail
+            }
+
+            // Подставляем username из сессии, если сервер не вернул
+            if profile.username.trimmingCharacters(in: .whitespaces).isEmpty {
+                let key = "petio_session_username"
+                if let savedUsername = UserDefaults.standard.string(forKey: key) {
+                    profile.username = savedUsername
+                } else {
+                    let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk"]
+                    let zoo = "\(animals.randomElement() ?? "pet")-\(Int.random(in: 10000...99999))"
+                    UserDefaults.standard.set(zoo, forKey: key)
+                    profile.username = zoo
+                }
+            }
+
+            // Дефолтная аватарка
+            if profile.avatar == nil {
+                let key = "petio_user_default_avatar"
+                if let saved = UserDefaults.standard.string(forKey: key) {
+                    profile.avatar = saved
+                } else {
+                    let avatar = "ava_\(Int.random(in: 1...9))"
+                    UserDefaults.standard.set(avatar, forKey: key)
+                    profile.avatar = avatar
+                }
+            }
+
+            user = profile
         } catch {
             // keep current state on error
         }
+    }
+
+    func resetUserSession() {
+        user = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+        pets = []
+        reminders = []
+        posts = []
+        chatMessages = []
+        UserDefaults.standard.removeObject(forKey: "petio_user_default_avatar")
+        UserDefaults.standard.removeObject(forKey: "petio_session_email")
+        UserDefaults.standard.removeObject(forKey: "petio_session_username")
     }
 
     // MARK: - Mutations (business logic → API, then update state)

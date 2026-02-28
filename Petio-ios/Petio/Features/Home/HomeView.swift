@@ -9,26 +9,23 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var app: AppState
+    @Binding var selectedTab: AppTab
     @State private var path: [AppRoute] = []
+    @State private var showAddPetSheet = false
+    @State private var showAddReminderSheet = false
     
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    todayTasksSection
-                    upcomingSection
-                    quickActionsSection
+            VStack {
+                header
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        todayTasksSection
+                        upcomingSection
+                        quickActionsSection
+                    }
+                    .padding(.bottom, 24)
                 }
-                .background(PetCareTheme.background)
-                .padding(.bottom, 24)
-            }
-            .background {
-                VStack {
-                    PetCareTheme.primary
-                    PetCareTheme.background
-                }
-                .ignoresSafeArea()
             }
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
@@ -49,38 +46,54 @@ struct HomeView: View {
                     Task { await app.loadAll() }
                 }
             }
+            .sheet(isPresented: $showAddPetSheet) {
+                AddPetSheet(onSave: { pet in
+                    Task { await app.addPet(pet) }
+                    showAddPetSheet = false
+                }, onCancel: { showAddPetSheet = false })
+            }
+            .sheet(isPresented: $showAddReminderSheet) {
+                AddReminderSheet(
+                    selectedPetId: app.pets.first?.id ?? "",
+                    pets: app.pets,
+                    onSave: { reminder in
+                        Task { await app.addReminder(reminder) }
+                        showAddReminderSheet = false
+                    },
+                    onCancel: { showAddReminderSheet = false }
+                )
+            }
         }
     }
     
     private var header: some View {
-        ZStack {
-            PetCareTheme.primary.ignoresSafeArea()
-            VStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Добро пожаловать 👋")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.7))
-                    
-                    Text("Petio")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                myPetsSection
-                    .padding(.bottom, 8)
+        VStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Добро пожаловать 👋")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.7))
+                
+                Text("Petio")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.white)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            myPetsSection
         }
-        .clipShape(
-            .rect(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 32,
-                bottomTrailingRadius: 32,
-                topTrailingRadius: 0
-            )
-        )
-        .padding(.bottom, 16)
+        .background {
+            PetCareTheme.primary
+                .clipShape(
+                    .rect(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 32,
+                        bottomTrailingRadius: 32,
+                        topTrailingRadius: 0
+                    )
+                )
+                .ignoresSafeArea()
+        }
     }
     
     private var myPetsSection: some View {
@@ -94,35 +107,63 @@ struct HomeView: View {
             .foregroundColor(.white)
             .padding(.horizontal, 20)
             
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(app.pets) { pet in
-                        Button {
-                            path.append(.petDetail(pet.id))
-                        } label: {
-                            HStack(spacing: 10) {
-                                AvatarView(url: pet.photo, placeholder: speciesEmoji(pet.species), size: 44)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(pet.name)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white)
-                                    Text(pet.species)
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.white.opacity(0.7))
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .buttonStyle(.plain)
+            if app.pets.isEmpty {
+                Button {
+                    showAddPetSheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white.opacity(0.8))
+                        Text("Добавить питомца")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.9))
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                    )
                 }
+                .buttonStyle(.plain)
                 .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 16)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(app.pets) { pet in
+                            Button {
+                                path.append(.petDetail(pet.id))
+                            } label: {
+                                HStack(spacing: 10) {
+                                    AvatarView(url: pet.photo, placeholder: speciesEmoji(pet.species), size: 44)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(pet.name)
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white)
+                                        Text(pet.species)
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 10)
+                                .background(Color.white.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
         }
     }
     
@@ -131,19 +172,32 @@ struct HomeView: View {
             PetCareSectionHeader(
                 title: "Задачи на сегодня",
                 actionTitle: "Все",
-                action: { path.append(.health) }
+                action: { selectedTab = .health }
             )
             .padding(.horizontal, 20)
             
             let today = app.todayReminders()
             if today.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 40))
                         .foregroundColor(PetCareTheme.primary.opacity(0.5))
                     Text("На сегодня задач нет!")
                         .font(.system(size: 14))
                         .foregroundColor(PetCareTheme.muted)
+                    if !app.pets.isEmpty {
+                        Button {
+                            showAddReminderSheet = true
+                        } label: {
+                            Label("Добавить задачу", systemImage: "plus")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(PetCareTheme.primary)
+                                .clipShape(Capsule())
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)

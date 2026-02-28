@@ -12,11 +12,12 @@ import (
 )
 
 type PostHandler struct {
-	repo repository.PostRepository
+	repo     repository.PostRepository
+	userRepo repository.UserRepository
 }
 
-func NewPostHandler(repo repository.PostRepository) *PostHandler {
-	return &PostHandler{repo: repo}
+func NewPostHandler(repo repository.PostRepository, userRepo repository.UserRepository) *PostHandler {
+	return &PostHandler{repo: repo, userRepo: userRepo}
 }
 
 // Get godoc
@@ -98,6 +99,10 @@ func (h *PostHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.UserID = userID
+	if profile, err := h.userRepo.GetProfile(r.Context(), userID); err == nil && profile != nil {
+		p.Author = profile.Username
+		p.Avatar = profile.Avatar
+	}
 	if err := h.repo.Create(r.Context(), &p); err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -226,6 +231,10 @@ func (h *PostHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.PostID = postID
+	if profile, err := h.userRepo.GetProfile(r.Context(), userID); err == nil && profile != nil {
+		c.Author = profile.Username
+		c.Avatar = profile.Avatar
+	}
 	if err := h.repo.AddComment(r.Context(), postID, &c); err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return

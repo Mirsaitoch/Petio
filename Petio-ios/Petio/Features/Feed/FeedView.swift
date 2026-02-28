@@ -116,7 +116,7 @@ struct FeedView: View {
                         guard !text.isEmpty else { return }
                         let c = Comment(
                             id: UUID().uuidString,
-                            author: app.user.name,
+                            author: app.user.username,
                             avatar: app.user.avatar,
                             content: text,
                             timestamp: "Только что"

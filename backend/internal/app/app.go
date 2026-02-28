@@ -69,7 +69,7 @@ func New(cfg *config.Config) (*App, error) {
 	weightHandler := handlers.NewWeightHandler(weightRepo)
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
-	postHandler := handlers.NewPostHandler(postRepo)
+	postHandler := handlers.NewPostHandler(postRepo, userRepo)
 	chatService := service.NewChatService(kc)
 	chatHandler := handlers.NewChatHandler(chatService)
 	profileHandler := handlers.NewProfileHandler(userRepo)

@@ -125,8 +125,8 @@ struct Post: Identifiable, Equatable, Codable {
 // MARK: - User
 
 struct UserProfile: Equatable, Codable {
-    var name: String
     var username: String
+    var email: String?
     var avatar: String?
     var bio: String
     var petsCount: Int

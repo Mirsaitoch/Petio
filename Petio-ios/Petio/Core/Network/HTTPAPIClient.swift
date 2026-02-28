@@ -169,6 +169,49 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
     }
 
+    func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post {
+        let boundary = UUID().uuidString
+        guard let url = URLComponents(string: baseURL + "/posts")?.url else {
+            throw APIError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = authManager.getToken() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = buildMultipartBody(post: post, imageData: imageData, boundary: boundary)
+        return try await perform(req)
+    }
+
+    private func buildMultipartBody(post: Post, imageData: Data, boundary: String) -> Data {
+        var body = Data()
+        func append(_ string: String) { body.append(Data(string.utf8)) }
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"image\"; filename=\"photo.jpg\"\r\n")
+        append("Content-Type: image/jpeg\r\n\r\n")
+        body.append(imageData)
+        append("\r\n")
+
+        let fields: [(String, String)] = [
+            ("id", post.id),
+            ("author", post.author),
+            ("content", post.content),
+            ("club", post.club),
+            ("timestamp", post.timestamp),
+        ]
+        for (name, value) in fields {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+            append(value)
+            append("\r\n")
+        }
+
+        append("--\(boundary)--\r\n")
+        return body
+    }
+
     func likePost(id: String, liked: Bool) async throws {
         struct LikeBody: Encodable { let liked: Bool }
         try await performVoid(try makeRequest(

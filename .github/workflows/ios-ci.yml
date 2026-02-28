@@ -1,0 +1,77 @@
+# iOS CI/CD Pipeline
+# Automatically builds and tests the iOS app on every push and pull request
+# Optimized for monorepo: only runs when Petio-ios/ files change
+
+name: iOS CI
+
+# TRIGGERS: When does this workflow run?
+on:
+  # Run on every push to any branch
+  push:
+    # Path filter: only run if files in Petio-ios/ changed
+    paths:
+      - 'Petio-ios/**'
+      - '.github/workflows/ios-ci.yml'  # Also run if this workflow file changed
+
+# JOBS: What to do when triggered
+jobs:
+  # Job name: build-and-test
+  build-and-test:
+    # Run on macOS (required for Xcode)
+    runs-on: macos-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      # This downloads your repo so the job can access it
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          lfs: true 
+
+      # Step 2: Select Xcode version (16.3)
+      # GitHub machines have multiple Xcode versions installed
+      # We explicitly select Xcode 16.3
+      - name: Set up Xcode
+        run: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+
+      # Step 3: Verify Xcode version
+      # Shows us which version is being used (helpful for debugging)
+      - name: Print Xcode version
+        run: xcodebuild -version
+
+      # Step 4: Install dependencies (if needed)
+
+      # Step 5: Build the iOS app
+      # This compiles your code without running tests
+      # -project: path to .xcodeproj
+      # -scheme: target scheme (Petio is the default)
+      # -destination: iOS 17+ device
+      # -configuration: Release or Debug
+      # CODE_SIGN_IDENTITY="" and CODE_SIGNING_REQUIRED=NO disable code signing
+      # (needed for CI because GitHub runners don't have your Apple certificates)
+      - name: Build iOS app
+        run: |
+          cd Petio-ios
+          xcodebuild build \
+            -project Petio.xcodeproj \
+            -scheme Petio \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ./DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+
+      # Step 6: Run unit tests
+      # This runs all XCTest tests in your project
+      # If any test fails, the workflow fails (and shows in GitHub)
+      # CODE_SIGN_IDENTITY="" and CODE_SIGNING_REQUIRED=NO disable code signing
+      - name: Run unit tests
+        run: |
+          cd Petio-ios
+          xcodebuild test \
+            -project Petio.xcodeproj \
+            -scheme Petio \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.6' \
+            -derivedDataPath ./DerivedData \
+            CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO

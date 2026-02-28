@@ -21,6 +21,7 @@ final class AppState: ObservableObject {
     @Published var diary: [HealthDiaryEntry] = []
     @Published var articles: [Article] = []
     @Published var posts: [Post] = []
+    @Published var isPostUploading = false
     @Published var chatMessages: [ChatMessage] = []
     @Published var user: UserProfile = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     @Published var selectedPetId: String = ""
@@ -266,13 +267,38 @@ final class AppState: ObservableObject {
         }
     }
 
-    func addPost(_ post: Post) async {
+    func addPost(_ post: Post, image: UIImage? = nil) async {
+        isPostUploading = image != nil
+        defer { isPostUploading = false }
         do {
-            let added = try await api.addPost(post)
+            let added: Post
+            if let image {
+                let resized = resizedForUpload(image)
+                if let imageData = resized.jpegData(compressionQuality: 0.7) {
+                    print("[DEBUG] uploading \(imageData.count) bytes")
+                    added = try await api.addPostWithImage(post, imageData: imageData)
+                    print("[DEBUG] addPostWithImage success — added.image = \(added.image ?? "NIL")")
+                } else {
+                    print("[DEBUG] jpegData failed — text-only")
+                    added = try await api.addPost(post)
+                }
+            } else {
+                added = try await api.addPost(post)
+            }
             posts.insert(added, at: 0)
         } catch {
+            print("[DEBUG] addPost error: \(error)")
             posts.insert(post, at: 0)
         }
+    }
+
+    private func resizedForUpload(_ image: UIImage, maxDimension: CGFloat = 1080) -> UIImage {
+        let size = image.size
+        guard max(size.width, size.height) > maxDimension else { return image }
+        let scale = maxDimension / max(size.width, size.height)
+        let newSize = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 
     func deletePost(id: String) {

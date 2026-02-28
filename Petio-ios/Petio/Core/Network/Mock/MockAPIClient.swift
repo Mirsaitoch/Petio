@@ -43,6 +43,7 @@ final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
         return list.filter { $0.club == club }
     }
     func addPost(_ post: Post) async throws -> Post { post }
+    func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post { post }
     func likePost(id: String, liked: Bool) async throws { }
     func addComment(postId: String, _ comment: Comment) async throws { }
 

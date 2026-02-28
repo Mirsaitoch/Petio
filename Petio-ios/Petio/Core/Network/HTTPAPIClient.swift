@@ -169,6 +169,45 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
     }
 
+    func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post {
+        // Step 1: upload image, get URL from /upload/post-image
+        let imageURL = try await uploadPostImage(imageData: imageData)
+        // Step 2: create post via JSON with image URL
+        var postWithImage = post
+        postWithImage.image = imageURL
+        return try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(postWithImage)))
+    }
+
+    private func uploadPostImage(imageData: Data) async throws -> String {
+        let boundary = UUID().uuidString
+        guard let url = URLComponents(string: baseURL + "/upload/post-image")?.url else {
+            throw APIError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = authManager.getToken() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = buildFileUploadBody(imageData: imageData, boundary: boundary)
+        struct UploadResponse: Decodable { let url: String }
+        let response: UploadResponse = try await perform(req)
+        print("[DEBUG] uploadPostImage → url = \(response.url)")
+        return response.url
+    }
+
+    private func buildFileUploadBody(imageData: Data, boundary: String) -> Data {
+        var body = Data()
+        func append(_ string: String) { body.append(Data(string.utf8)) }
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\n")
+        append("Content-Type: image/jpeg\r\n\r\n")
+        body.append(imageData)
+        append("\r\n")
+        append("--\(boundary)--\r\n")
+        return body
+    }
+
     func likePost(id: String, liked: Bool) async throws {
         struct LikeBody: Encodable { let liked: Bool }
         try await performVoid(try makeRequest(

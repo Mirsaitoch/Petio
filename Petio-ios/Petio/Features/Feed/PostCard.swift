@@ -7,6 +7,15 @@
 
 import SwiftUI
 
+private func relativeTimestamp(_ iso: String) -> String {
+    guard let date = parsePostDate(iso) else { return iso }
+    let s = Int(-date.timeIntervalSinceNow)
+    if s < 60   { return "Только что" }
+    if s < 3600 { return "\(s / 60) мин. назад" }
+    if s < 86400 { return "\(s / 3600) ч. назад" }
+    return "\(s / 86400) дн. назад"
+}
+
 struct PostCard: View {
     let post: Post
     let isCommentsExpanded: Bool
@@ -30,7 +39,7 @@ struct PostCard: View {
                             .padding(.vertical, 2)
                             .background(PetCareTheme.secondary)
                             .clipShape(Capsule())
-                        Text(post.timestamp)
+                        Text(relativeTimestamp(post.timestamp))
                             .font(.system(size: 10))
                             .foregroundColor(PetCareTheme.muted)
                     }
@@ -47,12 +56,25 @@ struct PostCard: View {
 
             if let urlString = post.image, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
-                    if let img = phase.image {
+                    switch phase {
+                    case .success(let img):
                         img
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(height: 180)
                             .clipped()
+                    case .failure:
+                        Color(PetCareTheme.border)
+                            .frame(height: 180)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(PetCareTheme.muted)
+                            )
+                    default:
+                        Color(PetCareTheme.border)
+                            .frame(height: 180)
+                            .overlay(ProgressView())
                     }
                 }
                 .padding(.horizontal, 16)

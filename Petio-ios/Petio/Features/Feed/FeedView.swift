@@ -5,24 +5,40 @@
 
 import SwiftUI
 
+private let isoFormatters: [ISO8601DateFormatter] = {
+    let withFrac = ISO8601DateFormatter()
+    withFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let plain = ISO8601DateFormatter()
+    plain.formatOptions = [.withInternetDateTime]
+    return [withFrac, plain]
+}()
+
+func parsePostDate(_ timestamp: String) -> Date? {
+    isoFormatters.lazy.compactMap { $0.date(from: timestamp) }.first
+}
+
 struct FeedView: View {
     @EnvironmentObject private var app: AppState
-    @State private var showClubPicker = false
     @State private var selectedClub = "Все"
+    @State private var newestFirst = true
     @State private var showNewPost = false
     @State private var expandedComments: Set<String> = []
     @State private var commentText: [String: String] = [:]
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
+
     private var filteredPosts: [Post] {
-        if selectedClub == "Все" { return app.posts }
-        return app.posts.filter { $0.club == selectedClub }
+        let base = selectedClub == "Все" ? app.posts : app.posts.filter { $0.club == selectedClub }
+        return base.sorted {
+            let d0 = parsePostDate($0.timestamp) ?? .distantPast
+            let d1 = parsePostDate($1.timestamp) ?? .distantPast
+            return newestFirst ? d0 > d1 : d0 < d1
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-                
             ChipGroup(
                 haveAdditionalPadding: true,
                 labels: clubs,
@@ -43,9 +59,11 @@ struct FeedView: View {
         }
         .background(PetCareTheme.background)
         .sheet(isPresented: $showNewPost) {
-            NewPostSheet(user: app.user) { post in
-                Task { await app.addPost(post) }
-                showNewPost = false
+            NewPostSheet(user: app.user) { post, image in
+                Task {
+                    await app.addPost(post, image: image)
+                    showNewPost = false
+                }
             } onCancel: { showNewPost = false }
         }
     }
@@ -57,6 +75,19 @@ struct FeedView: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    newestFirst.toggle()
+                } label: {
+                    Image(systemName: newestFirst ? "arrow.down" : "arrow.up")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
                 Button {
                     showNewPost = true
                 } label: {
@@ -73,7 +104,6 @@ struct FeedView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 10)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showClubPicker)
         .padding(.bottom, 16)
         .background {
             PetCareTheme.primary
@@ -119,7 +149,7 @@ struct FeedView: View {
                             author: app.user.username,
                             avatar: app.user.avatar,
                             content: text,
-                            timestamp: "Только что"
+                            timestamp: ISO8601DateFormatter().string(from: Date())
                         )
                         Task { await app.addComment(postId: post.id, c) }
                         commentText[post.id] = ""

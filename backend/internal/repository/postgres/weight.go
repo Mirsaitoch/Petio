@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"petio/backend/internal/domain"
 )
@@ -37,13 +38,13 @@ func (r *WeightRepository) GetByPetID(ctx context.Context, petID, userID string)
 	return list, rows.Err()
 }
 
-func (r *WeightRepository) GetByPetIDAndDate(ctx context.Context, petID, date, userID string) (*domain.WeightRecord, error) {
+func (r *WeightRepository) GetByPetIDAndDate(ctx context.Context, petID, userID string, date time.Time) (*domain.WeightRecord, error) {
 	var w domain.WeightRecord
 	err := r.db.QueryRowContext(ctx,
 		`SELECT wr.date, wr.weight FROM weight_records wr
-		 JOIN pets p ON p.id = wr.pet_id AND p.user_id = $3
-		 WHERE wr.pet_id = $1 AND wr.date = $2`,
-		petID, date, userID,
+		 JOIN pets p ON p.id = wr.pet_id AND p.user_id = $2
+		 WHERE wr.pet_id = $1 AND wr.date = $3`,
+		petID, userID, date,
 	).Scan(&w.Date, &w.Weight)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -79,11 +80,11 @@ func (r *WeightRepository) Update(ctx context.Context, petID, userID string, rec
 	return nil
 }
 
-func (r *WeightRepository) Delete(ctx context.Context, petID, date, userID string) error {
+func (r *WeightRepository) Delete(ctx context.Context, petID, userID string, date time.Time) error {
 	res, err := r.db.ExecContext(ctx,
-		`DELETE FROM weight_records WHERE pet_id = $1 AND date = $2
-		 AND EXISTS (SELECT 1 FROM pets WHERE id = $1 AND user_id = $3)`,
-		petID, date, userID,
+		`DELETE FROM weight_records WHERE pet_id = $1 AND date = $3
+		 AND EXISTS (SELECT 1 FROM pets WHERE id = $1 AND user_id = $2)`,
+		petID, userID, date,
 	)
 	if err != nil {
 		return err

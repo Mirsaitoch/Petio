@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -36,12 +37,17 @@ func (h *WeightHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	petID := chi.URLParam(r, "petId")
-	date := chi.URLParam(r, "date")
-	if petID == "" || date == "" {
+	dateStr := chi.URLParam(r, "date")
+	if petID == "" || dateStr == "" {
 		jsonError(w, http.StatusBadRequest, "petId and date required")
 		return
 	}
-	rec, err := h.repo.GetByPetIDAndDate(r.Context(), petID, date, userID)
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid date format (use YYYY-MM-DD)")
+		return
+	}
+	rec, err := h.repo.GetByPetIDAndDate(r.Context(), petID, userID, date)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -131,9 +137,14 @@ func (h *WeightHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	petID := chi.URLParam(r, "petId")
-	date := chi.URLParam(r, "date")
-	if petID == "" || date == "" {
+	dateStr := chi.URLParam(r, "date")
+	if petID == "" || dateStr == "" {
 		jsonError(w, http.StatusBadRequest, "petId and date required")
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid date format (use YYYY-MM-DD)")
 		return
 	}
 	var rec domain.WeightRecord
@@ -164,12 +175,17 @@ func (h *WeightHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	petID := chi.URLParam(r, "petId")
-	date := chi.URLParam(r, "date")
-	if petID == "" || date == "" {
+	dateStr := chi.URLParam(r, "date")
+	if petID == "" || dateStr == "" {
 		jsonError(w, http.StatusBadRequest, "petId and date required")
 		return
 	}
-	if err := h.repo.Delete(r.Context(), petID, date, userID); err != nil {
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid date format (use YYYY-MM-DD)")
+		return
+	}
+	if err := h.repo.Delete(r.Context(), petID, userID, date); err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

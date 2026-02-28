@@ -50,7 +50,7 @@ func (r *UserRepository) Create(ctx context.Context, u *domain.User) error {
 		u.ID = uuid.New().String()
 	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO users (id, email, password, name, username, join_date) VALUES ($1, $2, $3, '', '', '')`,
+		`INSERT INTO users (id, email, password, name, username) VALUES ($1, $2, $3, '', '')`,
 		u.ID, u.Email, u.Password,
 	)
 	return err

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"petio/backend/internal/domain"
 )
@@ -24,10 +25,10 @@ type ReminderRepository interface {
 
 type WeightRepository interface {
 	GetByPetID(ctx context.Context, petID, userID string) ([]domain.WeightRecord, error)
-	GetByPetIDAndDate(ctx context.Context, petID, date, userID string) (*domain.WeightRecord, error)
+	GetByPetIDAndDate(ctx context.Context, petID, userID string, date time.Time) (*domain.WeightRecord, error)
 	Add(ctx context.Context, petID, userID string, r domain.WeightRecord) error
 	Update(ctx context.Context, petID, userID string, r domain.WeightRecord) error
-	Delete(ctx context.Context, petID, date, userID string) error
+	Delete(ctx context.Context, petID, userID string, date time.Time) error
 }
 
 type DiaryRepository interface {

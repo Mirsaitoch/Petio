@@ -7,14 +7,7 @@
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
-		3B8A13CF2F463606005C345D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 3B8A13B92F463604005C345D /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 3B8A13C02F463604005C345D;
-			remoteInfo = Petio;
-		};
-		3B8A13D92F463606005C345D /* PBXContainerItemProxy */ = {
+		3B3DED752F538FFC00AFD63A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 3B8A13B92F463604005C345D /* Project object */;
 			proxyType = 1;
@@ -24,12 +17,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3B3DED712F538FFC00AFD63A /* PetioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B8A13C12F463604005C345D /* Petio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Petio.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		3B8A13CE2F463606005C345D /* PetioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		3B8A13D82F463606005C345D /* PetioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetioUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		3B3DED722F538FFC00AFD63A /* PetioTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PetioTests;
+			sourceTree = "<group>";
+		};
 		3B8A13C32F463604005C345D /* Petio */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Petio;
@@ -38,21 +35,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3B3DED6E2F538FFC00AFD63A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3B8A13BE2F463604005C345D /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13CB2F463606005C345D /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13D52F463606005C345D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -66,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				3B8A13C32F463604005C345D /* Petio */,
+				3B3DED722F538FFC00AFD63A /* PetioTests */,
 				3B8A13C22F463604005C345D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -74,8 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				3B8A13C12F463604005C345D /* Petio.app */,
-				3B8A13CE2F463606005C345D /* PetioTests.xctest */,
-				3B8A13D82F463606005C345D /* PetioUITests.xctest */,
+				3B3DED712F538FFC00AFD63A /* PetioTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,6 +73,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3B3DED702F538FFC00AFD63A /* PetioTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3B3DED772F538FFC00AFD63A /* Build configuration list for PBXNativeTarget "PetioTests" */;
+			buildPhases = (
+				3B3DED6D2F538FFC00AFD63A /* Sources */,
+				3B3DED6E2F538FFC00AFD63A /* Frameworks */,
+				3B3DED6F2F538FFC00AFD63A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3B3DED762F538FFC00AFD63A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3B3DED722F538FFC00AFD63A /* PetioTests */,
+			);
+			name = PetioTests;
+			packageProductDependencies = (
+			);
+			productName = PetioTests;
+			productReference = 3B3DED712F538FFC00AFD63A /* PetioTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		3B8A13C02F463604005C345D /* Petio */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3B8A13E22F463606005C345D /* Build configuration list for PBXNativeTarget "Petio" */;
@@ -105,46 +118,6 @@
 			productReference = 3B8A13C12F463604005C345D /* Petio.app */;
 			productType = "com.apple.product-type.application";
 		};
-		3B8A13CD2F463606005C345D /* PetioTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 3B8A13E52F463606005C345D /* Build configuration list for PBXNativeTarget "PetioTests" */;
-			buildPhases = (
-				3B8A13CA2F463606005C345D /* Sources */,
-				3B8A13CB2F463606005C345D /* Frameworks */,
-				3B8A13CC2F463606005C345D /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				3B8A13D02F463606005C345D /* PBXTargetDependency */,
-			);
-			name = PetioTests;
-			packageProductDependencies = (
-			);
-			productName = PetioTests;
-			productReference = 3B8A13CE2F463606005C345D /* PetioTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		3B8A13D72F463606005C345D /* PetioUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 3B8A13E82F463606005C345D /* Build configuration list for PBXNativeTarget "PetioUITests" */;
-			buildPhases = (
-				3B8A13D42F463606005C345D /* Sources */,
-				3B8A13D52F463606005C345D /* Frameworks */,
-				3B8A13D62F463606005C345D /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				3B8A13DA2F463606005C345D /* PBXTargetDependency */,
-			);
-			name = PetioUITests;
-			packageProductDependencies = (
-			);
-			productName = PetioUITests;
-			productReference = 3B8A13D82F463606005C345D /* PetioUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -155,16 +128,12 @@
 				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
+					3B3DED702F538FFC00AFD63A = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = 3B8A13C02F463604005C345D;
+					};
 					3B8A13C02F463604005C345D = {
 						CreatedOnToolsVersion = 16.3;
-					};
-					3B8A13CD2F463606005C345D = {
-						CreatedOnToolsVersion = 16.3;
-						TestTargetID = 3B8A13C02F463604005C345D;
-					};
-					3B8A13D72F463606005C345D = {
-						CreatedOnToolsVersion = 16.3;
-						TestTargetID = 3B8A13C02F463604005C345D;
 					};
 				};
 			};
@@ -183,28 +152,20 @@
 			projectRoot = "";
 			targets = (
 				3B8A13C02F463604005C345D /* Petio */,
-				3B8A13CD2F463606005C345D /* PetioTests */,
-				3B8A13D72F463606005C345D /* PetioUITests */,
+				3B3DED702F538FFC00AFD63A /* PetioTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		3B3DED6F2F538FFC00AFD63A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3B8A13BF2F463604005C345D /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13CC2F463606005C345D /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13D62F463606005C345D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -214,21 +175,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3B3DED6D2F538FFC00AFD63A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3B8A13BD2F463604005C345D /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13CA2F463606005C345D /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3B8A13D42F463606005C345D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -238,19 +192,50 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		3B8A13D02F463606005C345D /* PBXTargetDependency */ = {
+		3B3DED762F538FFC00AFD63A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 3B8A13C02F463604005C345D /* Petio */;
-			targetProxy = 3B8A13CF2F463606005C345D /* PBXContainerItemProxy */;
-		};
-		3B8A13DA2F463606005C345D /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 3B8A13C02F463604005C345D /* Petio */;
-			targetProxy = 3B8A13D92F463606005C345D /* PBXContainerItemProxy */;
+			targetProxy = 3B3DED752F538FFC00AFD63A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		3B3DED782F538FFC00AFD63A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5KT477LB69;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Petio";
+			};
+			name = Debug;
+		};
+		3B3DED792F538FFC00AFD63A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5KT477LB69;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Petio";
+			};
+			name = Release;
+		};
 		3B8A13E02F463606005C345D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -442,81 +427,18 @@
 			};
 			name = Release;
 		};
-		3B8A13E62F463606005C345D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5KT477LB69;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Petio";
-			};
-			name = Debug;
-		};
-		3B8A13E72F463606005C345D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5KT477LB69;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Petio";
-			};
-			name = Release;
-		};
-		3B8A13E92F463606005C345D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5KT477LB69;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Petio;
-			};
-			name = Debug;
-		};
-		3B8A13EA2F463606005C345D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5KT477LB69;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.patio.club.PetioUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Petio;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3B3DED772F538FFC00AFD63A /* Build configuration list for PBXNativeTarget "PetioTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B3DED782F538FFC00AFD63A /* Debug */,
+				3B3DED792F538FFC00AFD63A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		3B8A13BC2F463604005C345D /* Build configuration list for PBXProject "Petio" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -531,24 +453,6 @@
 			buildConfigurations = (
 				3B8A13E32F463606005C345D /* Debug */,
 				3B8A13E42F463606005C345D /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		3B8A13E52F463606005C345D /* Build configuration list for PBXNativeTarget "PetioTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				3B8A13E62F463606005C345D /* Debug */,
-				3B8A13E72F463606005C345D /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		3B8A13E82F463606005C345D /* Build configuration list for PBXNativeTarget "PetioUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				3B8A13E92F463606005C345D /* Debug */,
-				3B8A13EA2F463606005C345D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

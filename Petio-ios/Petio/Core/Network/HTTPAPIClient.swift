@@ -194,13 +194,16 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         body.append(imageData)
         append("\r\n")
 
-        let fields: [(String, String)] = [
+        var fields: [(String, String)] = [
             ("id", post.id),
             ("author", post.author),
             ("content", post.content),
             ("club", post.club),
             ("timestamp", post.timestamp),
         ]
+        if let avatar = post.avatar {
+            fields.append(("avatar", avatar))
+        }
         for (name, value) in fields {
             append("--\(boundary)\r\n")
             append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")

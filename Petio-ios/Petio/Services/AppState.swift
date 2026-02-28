@@ -269,8 +269,13 @@ final class AppState: ObservableObject {
     func addPost(_ post: Post, image: UIImage? = nil) async {
         do {
             let added: Post
-            if let image, let imageData = image.jpegData(compressionQuality: 0.8) {
-                added = try await api.addPostWithImage(post, imageData: imageData)
+            if let image {
+                if let imageData = image.jpegData(compressionQuality: 0.8) {
+                    added = try await api.addPostWithImage(post, imageData: imageData)
+                } else {
+                    // JPEG encoding failed (e.g. invalid image); publish text-only
+                    added = try await api.addPost(post)
+                }
             } else {
                 added = try await api.addPost(post)
             }

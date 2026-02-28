@@ -2,18 +2,19 @@
 //  NewPostSheet.swift
 //  Petio
 //
-//  Шит создания нового поста: выбор клуба, текст.
+//  Шит создания нового поста: выбор клуба, текст, фото.
 //
 
 import SwiftUI
 
 struct NewPostSheet: View {
     let user: UserProfile
-    let onSave: (Post) -> Void
+    let onSave: (Post, UIImage?) -> Void
     let onCancel: () -> Void
 
     @State private var content = ""
     @State private var club = "Собаки"
+    @State private var selectedImage: UIImage?
     private let clubs = ["Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
     var body: some View {
@@ -28,6 +29,9 @@ struct NewPostSheet: View {
                 Section("Текст") {
                     TextEditor(text: $content)
                         .frame(minHeight: 120)
+                }
+                Section("Фото (необязательно)") {
+                    PostImagePickerButton(selectedImage: $selectedImage)
                 }
             }
             .navigationTitle("Новый пост")
@@ -48,7 +52,7 @@ struct NewPostSheet: View {
                             timestamp: "Только что",
                             liked: false
                         )
-                        onSave(post)
+                        onSave(post, selectedImage)
                     }
                     .disabled(content.trimmingCharacters(in: .whitespaces).isEmpty)
                 }

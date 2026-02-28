@@ -275,8 +275,11 @@ final class AppState: ObservableObject {
             if let image {
                 let resized = resizedForUpload(image)
                 if let imageData = resized.jpegData(compressionQuality: 0.7) {
+                    print("[DEBUG] uploading \(imageData.count) bytes")
                     added = try await api.addPostWithImage(post, imageData: imageData)
+                    print("[DEBUG] addPostWithImage success — added.image = \(added.image ?? "NIL")")
                 } else {
+                    print("[DEBUG] jpegData failed — text-only")
                     added = try await api.addPost(post)
                 }
             } else {
@@ -284,6 +287,7 @@ final class AppState: ObservableObject {
             }
             posts.insert(added, at: 0)
         } catch {
+            print("[DEBUG] addPost error: \(error)")
             posts.insert(post, at: 0)
         }
     }

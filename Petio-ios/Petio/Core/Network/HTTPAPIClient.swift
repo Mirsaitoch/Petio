@@ -192,6 +192,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         req.httpBody = buildFileUploadBody(imageData: imageData, boundary: boundary)
         struct UploadResponse: Decodable { let url: String }
         let response: UploadResponse = try await perform(req)
+        print("[DEBUG] uploadPostImage → url = \(response.url)")
         return response.url
     }
 

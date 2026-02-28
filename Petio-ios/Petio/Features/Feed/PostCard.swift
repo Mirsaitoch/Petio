@@ -47,12 +47,25 @@ struct PostCard: View {
 
             if let urlString = post.image, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
-                    if let img = phase.image {
+                    switch phase {
+                    case .success(let img):
                         img
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(height: 180)
                             .clipped()
+                    case .failure:
+                        Color(PetCareTheme.border)
+                            .frame(height: 180)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(PetCareTheme.muted)
+                            )
+                    default:
+                        Color(PetCareTheme.border)
+                            .frame(height: 180)
+                            .overlay(ProgressView())
                     }
                 }
                 .padding(.horizontal, 16)

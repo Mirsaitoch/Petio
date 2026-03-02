@@ -81,6 +81,7 @@ struct HomeView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
             myPetsSection
+                .padding(.bottom, 8)
         }
         .background {
             PetCareTheme.primary
@@ -189,7 +190,7 @@ struct HomeView: View {
                         Button {
                             showAddReminderSheet = true
                         } label: {
-                            Label("Добавить задачу", systemImage: "plus")
+                            Label("Добавить напоминание", systemImage: "plus")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)

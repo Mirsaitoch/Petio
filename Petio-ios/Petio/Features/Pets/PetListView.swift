@@ -113,13 +113,21 @@ struct AddPetSheet: View {
 
     @State private var name = ""
     @State private var species = "Собака"
+    @State private var customSpecies = ""
     @State private var breed = ""
-    @State private var age = ""
+    @State private var birthDate = Date()
     @State private var weight = ""
     @State private var features = ""
     @State private var photoPath: String? = nil
 
     private let speciesList = ["Собака", "Кошка", "Птица", "Кролик", "Рыбка", "Другое"]
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "ru_RU")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f
+    }()
 
     private func speciesEmoji(_ s: String) -> String {
         switch s {
@@ -157,12 +165,26 @@ struct AddPetSheet: View {
                             ForEach(speciesList, id: \.self) { Text($0).tag($0) }
                         }
                         .pickerStyle(.menu)
+                        if species == "Другое" {
+                            TextField("Укажите вид", text: $customSpecies)
+                        }
                     }
                     Section("Порода") { TextField("Порода", text: $breed) }
-                    Section("Возраст") { TextField("Напр.: 2 года", text: $age) }
+                    Section("Дата рождения") {
+                        DatePicker(
+                            "Дата рождения",
+                            selection: $birthDate,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.compact)
+                    }
                     Section("Вес (кг)") {
                         TextField("0", text: $weight)
                             .keyboardType(.decimalPad)
+                            .onChange(of: weight) { _, newValue in
+                                if let d = Double(newValue), d < 0 { weight = "" }
+                            }
                     }
                     Section("Особенности (через запятую)") {
                         TextField("Аллергия, любит играть...", text: $features)
@@ -177,16 +199,22 @@ struct AddPetSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Добавить") {
+                        let birthString = AddPetSheet.isoFormatter.string(from: birthDate)
+                        let trimmedCustom = customSpecies.trimmingCharacters(in: .whitespaces)
+                        let finalSpecies = species == "Другое"
+                            ? (trimmedCustom.isEmpty ? "Другое" : trimmedCustom)
+                            : species
                         let pet = Pet(
                             id: UUID().uuidString,
                             name: name.isEmpty ? "Питомец" : name,
-                            species: species,
+                            species: finalSpecies,
                             breed: breed.isEmpty ? "Не указана" : breed,
-                            age: age.isEmpty ? "Неизвестно" : age,
-                            weight: Double(weight) ?? 0,
+                            age: PetAgeCalculator.computedAge(from: birthString),
+                            weight: max(0, Double(weight) ?? 0),
                             photo: photoPath,
-                            birthDate: "",
+                            birthDate: birthString,
                             vaccinations: [],
+                            treatments: [],
                             features: features.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                         )
                         onSave(pet)

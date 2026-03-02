@@ -25,7 +25,7 @@ struct PostCard: View {
     let onLike: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading) {
             HStack(alignment: .top, spacing: 10) {
                 CircleAvatarView(url: post.avatar, fallbackLetter: String(post.author.prefix(1)), size: 36)
                 VStack(alignment: .leading, spacing: 2) {
@@ -52,35 +52,41 @@ struct PostCard: View {
                 .font(.system(size: 14))
                 .foregroundColor(PetCareTheme.primary)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
-            if let urlString = post.image, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 180)
-                            .clipped()
-                    case .failure:
-                        Color(PetCareTheme.border)
-                            .frame(height: 180)
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(PetCareTheme.muted)
-                            )
-                    default:
-                        Color(PetCareTheme.border)
-                            .frame(height: 180)
-                            .overlay(ProgressView())
+                .padding(.bottom, 12)
+            
+            VStack(alignment: .center) {
+                if let urlString = post.image, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
+                        case .failure:
+                            Color(PetCareTheme.border)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 180)
+                                .overlay(
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(PetCareTheme.muted)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                        default:
+                            Color(PetCareTheme.border)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
+                                .overlay(ProgressView())
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
             }
-
             HStack(spacing: 20) {
                 Button(action: onLike) {
                     HStack(spacing: 6) {
@@ -105,7 +111,6 @@ struct PostCard: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(PetCareTheme.border.opacity(0.3))
 
             if isCommentsExpanded {
                 VStack(alignment: .leading, spacing: 12) {

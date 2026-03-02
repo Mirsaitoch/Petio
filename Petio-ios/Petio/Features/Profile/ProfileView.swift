@@ -122,7 +122,6 @@ struct ProfileView: View {
                 HStack(spacing: 8) {
                     statCard(icon: "pawprint", value: "\(app.pets.count)", label: "Питомцев")
                     statCard(icon: "square.and.pencil", value: "\(myPosts.count)", label: "Постов")
-                    statCard(icon: "calendar", value: app.user.joinDate, label: "С нами с")
                 }
             }
             .padding(.horizontal, 20)
@@ -246,6 +245,35 @@ struct ProfileView: View {
                     Text(post.content)
                         .font(.system(size: 14))
                         .foregroundColor(PetCareTheme.primary)
+                    if let urlString = post.image, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 200)
+                            case .failure:
+                                Color(PetCareTheme.border)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 160)
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 28))
+                                            .foregroundColor(PetCareTheme.muted)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            default:
+                                Color(PetCareTheme.border)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 200)
+                                    .overlay(ProgressView())
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
                     HStack(spacing: 16) {
                         Label("\(post.likes)", systemImage: post.liked ? "heart.fill" : "heart")
                             .font(.system(size: 12))

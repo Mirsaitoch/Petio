@@ -9,7 +9,7 @@ import SwiftUI
 import Charts
 
 enum HealthTab: String, CaseIterable {
-    case reminders = "Задачи"
+    case reminders = "Напоминания"
     case weight = "Вес"
     case diary = "Дневник"
 }
@@ -236,36 +236,38 @@ struct HealthView: View {
 
     private var remindersContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Прогресс")
-                        .font(.system(size: 14))
-                        .foregroundColor(PetCareTheme.primary)
-                    Spacer()
-                    Text("\(progressPercent)%")
-                        .font(.system(size: 14))
-                        .foregroundColor(PetCareTheme.primary)
-                }
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(PetCareTheme.secondary)
-                            .frame(height: 10)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(PetCareTheme.primary)
-                            .frame(width: g.size.width * CGFloat(progressPercent) / 100, height: 10)
+            if !petReminders.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Прогресс")
+                            .font(.system(size: 14))
+                            .foregroundColor(PetCareTheme.primary)
+                        Spacer()
+                        Text("\(progressPercent)%")
+                            .font(.system(size: 14))
+                            .foregroundColor(PetCareTheme.primary)
                     }
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(PetCareTheme.secondary)
+                                .frame(height: 10)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(PetCareTheme.primary)
+                                .frame(width: max(0, g.size.width * CGFloat(progressPercent) / 100), height: 10)
+                        }
+                    }
+                    .frame(height: 10)
+                    Text("\(petReminders.filter(\.completed).count) из \(petReminders.count) задач выполнено")
+                        .font(.system(size: 11))
+                        .foregroundColor(PetCareTheme.muted)
                 }
-                .frame(height: 10)
-                Text("\(petReminders.filter(\.completed).count) из \(petReminders.count) задач выполнено")
-                    .font(.system(size: 11))
-                    .foregroundColor(PetCareTheme.muted)
+                .padding(16)
+                .petCareCardStyle()
+                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: progressPercent)
+                .padding(.horizontal, 20)
             }
-            .padding(16)
-            .petCareCardStyle()
-            .animation(.spring(response: 0.5, dampingFraction: 0.75), value: progressPercent)
-            .padding(.horizontal, 20)
-            
+
             ChipGroup(
                 haveAdditionalPadding: true,
                 labels: ["Все", "Кормление", "Прививки", "Обработка", "Груминг"],
@@ -356,6 +358,19 @@ struct HealthView: View {
                     Text(entry.note)
                         .font(.system(size: 14))
                         .foregroundColor(PetCareTheme.primary)
+                    if !entry.tags.isEmpty {
+                        FlowLayoutSimple(spacing: 6) {
+                            ForEach(entry.tags) { tag in
+                                Text(tag.name)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color(hex: tag.colorHex))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)

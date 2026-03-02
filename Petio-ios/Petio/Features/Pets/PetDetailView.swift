@@ -14,6 +14,8 @@ struct PetDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
+    @State private var showAddVaccinationSheet = false
+    @State private var showAddTreatmentSheet = false
 
     private var pet: Pet? {
         app.pets.first { $0.id == petId }
@@ -36,16 +38,14 @@ struct PetDetailView: View {
                         infoCards(pet: pet)
                         featuresSection(pet: pet)
                         vaccinationsSection(pet: pet)
+                        treatmentsSection(pet: pet)
                         healthLink
                     }
                     .padding(.bottom, 24)
                 }
+            } else {
+                ContentUnavailableView("Питомец не найден", systemImage: "pawprint")
             }
-//            else {
-//                ContentUnavailableView("Питомец не найден", systemImage: "pawprint") {
-//                    Button("Назад к списку") { dismiss() }
-//                }
-//            }
         }
         .background(PetCareTheme.background)
         .navigationBarTitleDisplayMode(.inline)
@@ -72,6 +72,34 @@ struct PetDetailView: View {
                     Task { await app.updatePet(updated) }
                     showEditSheet = false
                 } onCancel: { showEditSheet = false }
+            }
+        }
+        .sheet(isPresented: $showAddVaccinationSheet) {
+            if let p = pet {
+                AddVaccinationSheet { vaccination in
+                    Task {
+                        var updated = p
+                        updated.vaccinations.append(vaccination)
+                        await app.updatePet(updated)
+                    }
+                    showAddVaccinationSheet = false
+                } onCancel: {
+                    showAddVaccinationSheet = false
+                }
+            }
+        }
+        .sheet(isPresented: $showAddTreatmentSheet) {
+            if let p = pet {
+                AddTreatmentSheet { treatment in
+                    Task {
+                        var updated = p
+                        updated.treatments.append(treatment)
+                        await app.updatePet(updated)
+                    }
+                    showAddTreatmentSheet = false
+                } onCancel: {
+                    showAddTreatmentSheet = false
+                }
             }
         }
         .alert("Удалить \(pet?.name ?? "")?", isPresented: $showDeleteAlert) {
@@ -191,9 +219,18 @@ struct PetDetailView: View {
 
     private func vaccinationsSection(pet: Pet) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Прививки", systemImage: "syringe")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(PetCareTheme.primary)
+            HStack {
+                Label("Прививки", systemImage: "syringe")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PetCareTheme.primary)
+                Spacer()
+                Button {
+                    showAddVaccinationSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(PetCareTheme.primary)
+                }
+            }
             if pet.vaccinations.isEmpty {
                 Text("Прививки не добавлены")
                     .font(.system(size: 14))
@@ -215,6 +252,17 @@ struct PetDetailView: View {
                                 .padding(.vertical, 4)
                                 .background(PetCareTheme.primary.opacity(0.15))
                                 .clipShape(Capsule())
+                            Button {
+                                Task {
+                                    guard var p = app.pets.first(where: { $0.id == petId }) else { return }
+                                    p.vaccinations.removeAll { $0.id == v.id }
+                                    await app.updatePet(p)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                            }
                         }
                         HStack(spacing: 16) {
                             Text("Дата: \(v.date)")
@@ -222,6 +270,59 @@ struct PetDetailView: View {
                         }
                         .font(.system(size: 11))
                         .foregroundColor(PetCareTheme.muted)
+                    }
+                    .padding(14)
+                    .petCareCardStyle()
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+
+    private func treatmentsSection(pet: Pet) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Обработки", systemImage: "cross.vial")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(PetCareTheme.primary)
+                Spacer()
+                Button {
+                    showAddTreatmentSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(PetCareTheme.primary)
+                }
+            }
+            if pet.treatments.isEmpty {
+                Text("Обработки не добавлены")
+                    .font(.system(size: 14))
+                    .foregroundColor(PetCareTheme.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .petCareCardStyle()
+            } else {
+                ForEach(pet.treatments) { t in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(t.name)
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Дата: \(t.date)")
+                                .font(.system(size: 11))
+                                .foregroundColor(PetCareTheme.muted)
+                        }
+                        Spacer()
+                        Button {
+                            Task {
+                                guard var p = app.pets.first(where: { $0.id == petId }) else { return }
+                                p.treatments.removeAll { $0.id == t.id }
+                                await app.updatePet(p)
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                                .font(.system(size: 14))
+                        }
                     }
                     .padding(14)
                     .petCareCardStyle()
@@ -289,9 +390,21 @@ struct EditPetSheet: View {
     let onSave: (Pet) -> Void
     let onCancel: () -> Void
 
+    private let speciesList = ["Собака", "Кошка", "Птица", "Кролик", "Рыбка", "Другое"]
+
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "ru_RU")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f
+    }()
+
     @State private var name: String = ""
+    @State private var species: String = "Собака"
+    @State private var customSpecies: String = ""
     @State private var breed: String = ""
-    @State private var age: String = ""
+    @State private var birthDate: Date = Date()
     @State private var weight: Double = 0
     @State private var featuresText: String = ""
     @State private var photoPath: String? = nil
@@ -325,11 +438,31 @@ struct EditPetSheet: View {
 
                 Form {
                     Section("Имя") { TextField("Имя", text: $name) }
+                    Section("Вид") {
+                        Picker("Вид", selection: $species) {
+                            ForEach(speciesList, id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        if species == "Другое" {
+                            TextField("Укажите вид", text: $customSpecies)
+                        }
+                    }
                     Section("Порода") { TextField("Порода", text: $breed) }
-                    Section("Возраст") { TextField("Возраст", text: $age) }
+                    Section("Дата рождения") {
+                        DatePicker(
+                            "Дата рождения",
+                            selection: $birthDate,
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.compact)
+                    }
                     Section("Вес (кг)") {
                         TextField("Вес", value: $weight, format: .number)
                             .keyboardType(.decimalPad)
+                            .onChange(of: weight) { _, newValue in
+                                if newValue < 0 { weight = 0 }
+                            }
                     }
                     Section("Особенности (через запятую)") {
                         TextField("Особенности", text: $featuresText)
@@ -338,8 +471,16 @@ struct EditPetSheet: View {
             }
             .onAppear {
                 name = pet.name
+                // If species is not in the predefined list (excluding "Другое"), treat as custom
+                let knownSpecies = ["Собака", "Кошка", "Птица", "Кролик", "Рыбка"]
+                if knownSpecies.contains(pet.species) {
+                    species = pet.species
+                } else {
+                    species = "Другое"
+                    customSpecies = pet.species
+                }
                 breed = pet.breed
-                age = pet.age
+                birthDate = EditPetSheet.isoFormatter.date(from: pet.birthDate) ?? Date()
                 weight = pet.weight
                 featuresText = pet.features.joined(separator: ", ")
                 photoPath = pet.photo
@@ -350,15 +491,121 @@ struct EditPetSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
+                        let birthString = EditPetSheet.isoFormatter.string(from: birthDate)
+                        let trimmedCustom = customSpecies.trimmingCharacters(in: .whitespaces)
+                        let finalSpecies = species == "Другое"
+                            ? (trimmedCustom.isEmpty ? "Другое" : trimmedCustom)
+                            : species
                         var p = pet
                         p.name = name
+                        p.species = finalSpecies
                         p.breed = breed
-                        p.age = age
-                        p.weight = weight
+                        p.birthDate = birthString
+                        p.age = PetAgeCalculator.computedAge(from: birthString)
+                        p.weight = max(0, weight)
                         p.photo = photoPath
                         p.features = featuresText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                         onSave(p)
                     }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+struct AddVaccinationSheet: View {
+    let onSave: (Vaccination) -> Void
+    let onCancel: () -> Void
+
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "ru_RU")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f
+    }()
+
+    @State private var name = ""
+    @State private var date = Date()
+    @State private var nextDate = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Название") {
+                    TextField("Напр.: Бешенство, DHPP", text: $name)
+                }
+                Section("Дата прививки") {
+                    DatePicker("Дата", selection: $date, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                }
+                Section("Следующая прививка") {
+                    DatePicker("Дата", selection: $nextDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                }
+            }
+            .navigationTitle("Новая прививка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") {
+                        let v = Vaccination(
+                            id: UUID().uuidString,
+                            name: name.trimmingCharacters(in: .whitespaces),
+                            date: AddVaccinationSheet.isoFormatter.string(from: date),
+                            nextDate: AddVaccinationSheet.isoFormatter.string(from: nextDate)
+                        )
+                        onSave(v)
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+struct AddTreatmentSheet: View {
+    let onSave: (Treatment) -> Void
+    let onCancel: () -> Void
+
+    private static let isoFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "ru_RU")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f
+    }()
+
+    @State private var name = ""
+    @State private var date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Название") {
+                    TextField("Напр.: Антипаразитарная обработка", text: $name)
+                }
+                Section("Дата") {
+                    DatePicker("Дата", selection: $date, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                }
+            }
+            .navigationTitle("Новая обработка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Добавить") {
+                        let t = Treatment(
+                            id: UUID().uuidString,
+                            name: name.trimmingCharacters(in: .whitespaces),
+                            date: AddTreatmentSheet.isoFormatter.string(from: date)
+                        )
+                        onSave(t)
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

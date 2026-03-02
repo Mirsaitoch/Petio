@@ -19,6 +19,7 @@ struct Pet: Identifiable, Equatable, Codable {
     var photo: String?
     var birthDate: String
     var vaccinations: [Vaccination]
+    var treatments: [Treatment]
     var features: [String]
 }
 
@@ -27,6 +28,12 @@ struct Vaccination: Identifiable, Equatable, Codable {
     var name: String
     var date: String
     var nextDate: String
+}
+
+struct Treatment: Identifiable, Equatable, Codable {
+    let id: String
+    var name: String
+    var date: String
 }
 
 // MARK: - Reminder
@@ -65,11 +72,19 @@ struct WeightRecord: Equatable, Codable {
     var weight: Double
 }
 
+struct DiaryTag: Identifiable, Equatable, Codable {
+    let id: String
+    var name: String
+    var colorHex: String   // e.g. "#4CAF50"
+    var isDefault: Bool
+}
+
 struct HealthDiaryEntry: Identifiable, Equatable, Codable {
     let id: String
     let petId: String
     var date: String
     var note: String
+    var tags: [DiaryTag]
 }
 
 // MARK: - Article

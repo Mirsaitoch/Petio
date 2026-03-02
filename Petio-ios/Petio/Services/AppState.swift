@@ -12,6 +12,34 @@ final class AppState: ObservableObject {
     private let api: APIClientProtocol
     init(api: APIClientProtocol = MockAPIClient()) {
         self.api = api
+        self.customDiaryTags = Self.loadCustomTags()
+    }
+
+    private static func loadCustomTags() -> [DiaryTag] {
+        guard let data = UserDefaults.standard.data(forKey: customTagsKey),
+              let tags = try? JSONDecoder().decode([DiaryTag].self, from: data)
+        else { return [] }
+        return tags
+    }
+
+    private func saveCustomTags() {
+        if let data = try? JSONEncoder().encode(customDiaryTags) {
+            UserDefaults.standard.set(data, forKey: Self.customTagsKey)
+        }
+    }
+
+    func addCustomTag(_ tag: DiaryTag) {
+        customDiaryTags.append(tag)
+        saveCustomTags()
+    }
+
+    func removeCustomTag(id: String) {
+        customDiaryTags.removeAll { $0.id == id }
+        saveCustomTags()
+    }
+
+    var allDiaryTags: [DiaryTag] {
+        DiaryTag.defaults + customDiaryTags
     }
 
     // MARK: - Data (published for UI)
@@ -25,6 +53,39 @@ final class AppState: ObservableObject {
     @Published var chatMessages: [ChatMessage] = []
     @Published var user: UserProfile = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     @Published var selectedPetId: String = ""
+    @Published var customDiaryTags: [DiaryTag] = []
+    private static let customTagsKey = "petio_custom_diary_tags"
+    private static let savedPetsKey = "petio_saved_pets"
+    private static let savedDiaryKey = "petio_saved_diary"
+
+    // MARK: - Pets local persistence helpers
+    private static func loadSavedPets() -> [Pet]? {
+        guard let data = UserDefaults.standard.data(forKey: savedPetsKey),
+              let saved = try? JSONDecoder().decode([Pet].self, from: data),
+              !saved.isEmpty
+        else { return nil }
+        return saved
+    }
+
+    private func savePets() {
+        if let data = try? JSONEncoder().encode(pets) {
+            UserDefaults.standard.set(data, forKey: Self.savedPetsKey)
+        }
+    }
+
+    // MARK: - Diary local persistence helpers
+    private static func loadSavedDiary() -> [HealthDiaryEntry]? {
+        guard let data = UserDefaults.standard.data(forKey: savedDiaryKey),
+              let saved = try? JSONDecoder().decode([HealthDiaryEntry].self, from: data)
+        else { return nil }
+        return saved
+    }
+
+    private func saveDiary() {
+        if let data = try? JSONEncoder().encode(diary) {
+            UserDefaults.standard.set(data, forKey: Self.savedDiaryKey)
+        }
+    }
 
     // MARK: - Load from API (business logic)
     func loadAll() async {
@@ -42,6 +103,10 @@ final class AppState: ObservableObject {
     }
 
     func loadPets() async {
+        if let saved = Self.loadSavedPets() {
+            pets = saved
+            return
+        }
         do {
             pets = try await api.fetchPets()
         } catch {
@@ -69,6 +134,10 @@ final class AppState: ObservableObject {
     }
 
     func loadDiary() async {
+        if let saved = Self.loadSavedDiary() {
+            diary = saved
+            return
+        }
         guard !pets.isEmpty else { return }
         var all: [HealthDiaryEntry] = []
         for id in pets.map(\.id) {
@@ -145,6 +214,8 @@ final class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "petio_user_default_avatar")
         UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
+        UserDefaults.standard.removeObject(forKey: Self.savedPetsKey)
+        UserDefaults.standard.removeObject(forKey: Self.savedDiaryKey)
     }
 
     // MARK: - Mutations (business logic → API, then update state)
@@ -155,6 +226,7 @@ final class AppState: ObservableObject {
         } catch {
             pets.append(pet)
         }
+        savePets()
     }
 
     func updatePet(_ pet: Pet) async {
@@ -168,6 +240,7 @@ final class AppState: ObservableObject {
                 pets[i] = pet
             }
         }
+        savePets()
     }
 
     func deletePet(id: String) async {
@@ -177,6 +250,7 @@ final class AppState: ObservableObject {
         } catch {
             pets.removeAll { $0.id == id }
         }
+        savePets()
     }
 
     func toggleReminder(id: String) {
@@ -216,6 +290,7 @@ final class AppState: ObservableObject {
         } catch {
             diary.insert(entry, at: 0)
         }
+        saveDiary()
     }
 
     func updateDiaryEntry(_ entry: HealthDiaryEntry) async {
@@ -229,6 +304,7 @@ final class AppState: ObservableObject {
                 diary[i] = entry
             }
         }
+        saveDiary()
     }
 
     func deleteDiaryEntry(id: String) async {
@@ -238,6 +314,7 @@ final class AppState: ObservableObject {
         } catch {
             diary.removeAll { $0.id == id }
         }
+        saveDiary()
     }
 
     func togglePostLike(postId: String) async {

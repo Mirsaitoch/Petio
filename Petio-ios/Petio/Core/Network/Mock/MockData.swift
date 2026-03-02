@@ -34,6 +34,7 @@ enum MockData {
                     Vaccination(id: "v1", name: "Бешенство", date: "2025-06-10", nextDate: "2026-06-10"),
                     Vaccination(id: "v2", name: "DHPP", date: "2025-05-01", nextDate: "2026-05-01")
                 ],
+                treatments: [],
                 features: ["Аллергия на курицу", "Любит плавать", "Дружелюбный"]
             ),
             Pet(
@@ -48,6 +49,7 @@ enum MockData {
                 vaccinations: [
                     Vaccination(id: "v3", name: "Бешенство", date: "2025-08-15", nextDate: "2026-08-15")
                 ],
+                treatments: [],
                 features: ["Домашняя", "Любит тунец", "Ласковая"]
             ),
             Pet(
@@ -60,6 +62,7 @@ enum MockData {
                 photo: parrotPhoto,
                 birthDate: "2025-02-10",
                 vaccinations: [],
+                treatments: [],
                 features: ["Говорящий", "Любит яблоки", "Активный"]
             )
         ]
@@ -99,10 +102,18 @@ enum MockData {
 
     static var diary: [HealthDiaryEntry] {
         [
-            HealthDiaryEntry(id: "d1", petId: "1", date: "2026-02-15", note: "Барон был активен на прогулке, аппетит хороший. Заметил небольшую сухость на носу."),
-            HealthDiaryEntry(id: "d2", petId: "1", date: "2026-02-10", note: "Посетили ветеринара — всё в норме. Вес стабильный."),
-            HealthDiaryEntry(id: "d3", petId: "2", date: "2026-02-14", note: "Мурка стала меньше есть. Нужно понаблюдать."),
-            HealthDiaryEntry(id: "d4", petId: "2", date: "2026-02-12", note: "Играла весь день, настроение отличное!")
+            HealthDiaryEntry(id: "d1", petId: "1", date: "2026-02-15",
+                             note: "Барон был активен на прогулке, аппетит хороший. Заметил небольшую сухость на носу.",
+                             tags: []),
+            HealthDiaryEntry(id: "d2", petId: "1", date: "2026-02-10",
+                             note: "Посетили ветеринара — всё в норме. Вес стабильный.",
+                             tags: []),
+            HealthDiaryEntry(id: "d3", petId: "2", date: "2026-02-14",
+                             note: "Мурка стала меньше есть. Нужно понаблюдать.",
+                             tags: []),
+            HealthDiaryEntry(id: "d4", petId: "2", date: "2026-02-12",
+                             note: "Играла весь день, настроение отличное!",
+                             tags: []),
         ]
     }
 

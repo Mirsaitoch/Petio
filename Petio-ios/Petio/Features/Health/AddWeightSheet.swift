@@ -27,6 +27,9 @@ struct AddWeightSheet: View {
                 Section("Вес (кг)") {
                     TextField("0", text: $weight)
                         .keyboardType(.decimalPad)
+                        .onChange(of: weight) { _, newValue in
+                            if let d = Double(newValue), d < 0 { weight = "" }
+                        }
                 }
                 Section("Дата") {
                     DatePicker("Дата", selection: $date, in: ...Date(), displayedComponents: .date)

@@ -57,6 +57,7 @@ final class AppState: ObservableObject {
     private static let customTagsKey = "petio_custom_diary_tags"
     private static let savedPetsKey = "petio_saved_pets"
     private static let savedDiaryKey = "petio_saved_diary"
+    private static let savedWeightKey = "petio_saved_weight"
 
     // MARK: - Pets local persistence helpers
     private static func loadSavedPets() -> [Pet]? {
@@ -84,6 +85,20 @@ final class AppState: ObservableObject {
     private func saveDiary() {
         if let data = try? JSONEncoder().encode(diary) {
             UserDefaults.standard.set(data, forKey: Self.savedDiaryKey)
+        }
+    }
+
+    // MARK: - Weight history local persistence helpers
+    private static func loadSavedWeightHistory() -> [String: [WeightRecord]]? {
+        guard let data = UserDefaults.standard.data(forKey: savedWeightKey),
+              let saved = try? JSONDecoder().decode([String: [WeightRecord]].self, from: data)
+        else { return nil }
+        return saved
+    }
+
+    private func saveWeightHistory() {
+        if let data = try? JSONEncoder().encode(weightHistory) {
+            UserDefaults.standard.set(data, forKey: Self.savedWeightKey)
         }
     }
 
@@ -123,10 +138,24 @@ final class AppState: ObservableObject {
     }
 
     func loadWeightHistory() async {
+        if let saved = Self.loadSavedWeightHistory() {
+            weightHistory = saved
+            // Update pet weights from history
+            for (petId, records) in weightHistory {
+                if let latest = records.last, let i = pets.firstIndex(where: { $0.id == petId }) {
+                    pets[i].weight = latest.weight
+                }
+            }
+            return
+        }
         for id in pets.map(\.id) {
             do {
                 let list = try await api.fetchWeightHistory(petId: id)
                 weightHistory[id] = list
+                // Update pet weight from latest record
+                if let latest = list.last, let i = pets.firstIndex(where: { $0.id == id }) {
+                    pets[i].weight = latest.weight
+                }
             } catch {
                 weightHistory[id] = weightHistory[id] ?? []
             }
@@ -223,8 +252,26 @@ final class AppState: ObservableObject {
         do {
             let added = try await api.addPet(pet)
             pets.append(added)
+            // Add initial weight record if weight > 0
+            if added.weight > 0 {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                let today = dateFormatter.string(from: Date())
+                let weightRecord = WeightRecord(date: today, weight: added.weight)
+                await addWeightRecord(petId: added.id, weightRecord)
+            }
         } catch {
             pets.append(pet)
+            // Add initial weight record if weight > 0
+            if pet.weight > 0 {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                let today = dateFormatter.string(from: Date())
+                let weightRecord = WeightRecord(date: today, weight: pet.weight)
+                await addWeightRecord(petId: pet.id, weightRecord)
+            }
         }
         savePets()
     }
@@ -277,10 +324,26 @@ final class AppState: ObservableObject {
     }
 
     func addWeightRecord(petId: String, _ record: WeightRecord) async {
-        var list = weightHistory[petId] ?? []
-        list.append(record)
-        list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
-        weightHistory[petId] = list
+        do {
+            try await api.addWeightRecord(petId: petId, record)
+            var list = weightHistory[petId] ?? []
+            list.append(record)
+            list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
+            weightHistory[petId] = list
+            // Update current weight in pet from the latest record after sorting
+            if let latest = list.last, let i = pets.firstIndex(where: { $0.id == petId }) {
+                pets[i].weight = latest.weight
+            }
+        } catch {
+            var list = weightHistory[petId] ?? []
+            list.append(record)
+            list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
+            weightHistory[petId] = list
+            if let latest = list.last, let i = pets.firstIndex(where: { $0.id == petId }) {
+                pets[i].weight = latest.weight
+            }
+        }
+        saveWeightHistory()
     }
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async {

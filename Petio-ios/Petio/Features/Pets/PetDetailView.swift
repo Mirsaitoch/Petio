@@ -53,6 +53,8 @@ struct PetDetailView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(PetCareTheme.primary)
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -66,6 +68,7 @@ struct PetDetailView: View {
                 }
             }
         }
+        .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $showEditSheet) {
             if let p = pet {
                 EditPetSheet(pet: p) { updated in

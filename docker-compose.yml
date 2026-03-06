@@ -15,35 +15,60 @@ services:
       timeout: 5s
       retries: 5
 
-  app:
+  triton:
     build:
-      context: ./backend
+      context: ./triton
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
-    # Переменные S3 (S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) берутся из backend/.env
+      - "8010:8000"  # HTTP API
+      - "8011:8001"  # gRPC
+      - "8012:8002"  # Metrics
     env_file:
-      - backend/.env
-    environment:
-      HTTP_ADDR: ":8080"
-      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/petio?sslmode=disable"
-      JWT_SECRET: "petio-jwt-secret-change-in-prod"
-      S3_REGION: "ru-central1"
-      S3_ENDPOINT: "https://storage.yandexcloud.net"
-    depends_on:
-      postgres:
-        condition: service_healthy
-        
+      - ./triton/.env
+    volumes:
+      - triton_models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s  # Время на загрузку моделей из S3
+
   moderation_api:
     build:
       context: ./moderation_service
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    depends_on:
-      - postgres
     environment:
-      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/petio?sslmode=disable"
+      TRITON_URL: "triton:8001"
+      TRITON_HTTP_URL: "http://triton:8000"
+      TOKENIZERS_PATH: "/app/tokenizers"
+    depends_on:
+      triton:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./backend/.env
+    environment:
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/petio?sslmode=disable"
+      JWT_SECRET: "petio-jwt-secret-change-in-prod"
+      S3_REGION: "ru-central1"
+      S3_ENDPOINT: "https://storage.yandexcloud.net"
+      MODERATION_API_URL: "http://moderation_api:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      moderation_api:
+        condition: service_started
 
 volumes:
   postgres_data:
+  triton_models:

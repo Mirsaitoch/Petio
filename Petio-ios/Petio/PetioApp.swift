@@ -11,9 +11,17 @@ struct PetioApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(container.authManager)
-                .environmentObject(container.appState)
+            ZStack(alignment: .top) {
+                // Основной контент
+                ContentView()
+                    .environmentObject(container.authManager)
+                    .environmentObject(container.appState)
+                    .environmentObject(container.appState.networkMonitor)
+
+                // Баннер офлайна сверху
+                OfflineIndicatorView()
+                    .environmentObject(container.appState.networkMonitor)
+            }
         }
     }
 }

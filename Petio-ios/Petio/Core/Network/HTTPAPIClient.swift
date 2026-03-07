@@ -12,6 +12,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     private let baseURL: String
     private let authManager: AuthManager
+    private let cacheManager = CacheManager()
 
     init(authManager: AuthManager, baseURL: String = "http://localhost:8080/v1") {
         self.authManager = authManager
@@ -81,10 +82,45 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         catch { throw APIError.decoding(error) }
     }
 
+    private func isNetworkError(_ error: Error) -> Bool {
+        guard let apiError = error as? APIError else {
+            if let urlError = error as? URLError {
+                return isNetworkURLError(urlError)
+            }
+            return false
+        }
+
+        if case .network(let innerError) = apiError {
+            if let urlError = innerError as? URLError {
+                return isNetworkURLError(urlError)
+            }
+        }
+        return false
+    }
+
+    private func isNetworkURLError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .notConnectedToInternet, .timedOut, .badServerResponse, .networkConnectionLost, .dnsLookupFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Pets
 
     func fetchPets() async throws -> [Pet] {
-        try await perform(try makeRequest(path: "/pets"))
+        do {
+            let pets: [Pet] = try await perform(try makeRequest(path: "/pets"))
+            cacheManager.savePets(pets)
+            return pets
+        } catch let error {
+            if isNetworkError(error) {
+                print("⚠️ Сеть недоступна, загружаю питомцев из кеша")
+                return cacheManager.loadPets()
+            }
+            throw error
+        }
     }
 
     func fetchPet(id: String) async throws -> Pet? {
@@ -106,9 +142,19 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     // MARK: - Reminders
 
     func fetchReminders(petId: String?) async throws -> [Reminder] {
-        var qi: [URLQueryItem] = []
-        if let id = petId { qi = [URLQueryItem(name: "petId", value: id)] }
-        return try await perform(try makeRequest(path: "/reminders", queryItems: qi))
+        do {
+            var qi: [URLQueryItem] = []
+            if let id = petId { qi = [URLQueryItem(name: "petId", value: id)] }
+            let reminders: [Reminder] = try await perform(try makeRequest(path: "/reminders", queryItems: qi))
+            cacheManager.saveReminders(reminders)
+            return reminders
+        } catch let error {
+            if isNetworkError(error) {
+                print("⚠️ Сеть недоступна, загружаю напоминания из кеша")
+                return cacheManager.loadReminders()
+            }
+            throw error
+        }
     }
 
     func addReminder(_ reminder: Reminder) async throws -> Reminder {
@@ -136,7 +182,17 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     // MARK: - Diary
 
     func fetchDiary(petId: String) async throws -> [HealthDiaryEntry] {
-        try await perform(try makeRequest(path: "/pets/\(petId)/diary"))
+        do {
+            let entries: [HealthDiaryEntry] = try await perform(try makeRequest(path: "/pets/\(petId)/diary"))
+            cacheManager.saveDiaryEntries(entries)
+            return entries
+        } catch let error {
+            if isNetworkError(error) {
+                print("⚠️ Сеть недоступна, загружаю дневник из кеша")
+                return cacheManager.loadDiaryEntries()
+            }
+            throw error
+        }
     }
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async throws -> HealthDiaryEntry {

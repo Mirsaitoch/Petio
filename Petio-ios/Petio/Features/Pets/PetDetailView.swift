@@ -11,11 +11,14 @@ import PhotosUI
 struct PetDetailView: View {
     let petId: String
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var networkMonitor: NetworkMonitor
     @Environment(\.dismiss) private var dismiss
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddVaccinationSheet = false
     @State private var showAddTreatmentSheet = false
+    @State private var offlineAlertMessage = ""
+    @State private var showOfflineAlert = false
 
     private var pet: Pet? {
         app.pets.first { $0.id == petId }
@@ -59,12 +62,29 @@ struct PetDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 8) {
-                    Button { showEditSheet = true } label: {
+                    Button {
+                        if networkMonitor.isOnline {
+                            showEditSheet = true
+                        } else {
+                            offlineAlertMessage = "Редактирование недоступно без интернета"
+                            showOfflineAlert = true
+                        }
+                    } label: {
                         Image(systemName: "pencil")
                     }
-                    Button(role: .destructive) { showDeleteAlert = true } label: {
+                    .disabled(!networkMonitor.isOnline)
+
+                    Button(role: .destructive) {
+                        if networkMonitor.isOnline {
+                            showDeleteAlert = true
+                        } else {
+                            offlineAlertMessage = "Удаление недоступно без интернета"
+                            showOfflineAlert = true
+                        }
+                    } label: {
                         Image(systemName: "trash")
                     }
+                    .disabled(!networkMonitor.isOnline)
                 }
             }
         }
@@ -115,6 +135,11 @@ struct PetDetailView: View {
             }
         } message: {
             Text("Все данные питомца будут удалены. Это действие нельзя отменить.")
+        }
+        .alert("Нет интернета", isPresented: $showOfflineAlert) {
+            Button("ОК", role: .cancel) { }
+        } message: {
+            Text(offlineAlertMessage)
         }
     }
 
@@ -223,16 +248,22 @@ struct PetDetailView: View {
     private func vaccinationsSection(pet: Pet) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Прививки", systemImage: "syringe")
+                Label("Прившивки", systemImage: "syringe")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(PetCareTheme.primary)
                 Spacer()
                 Button {
-                    showAddVaccinationSheet = true
+                    if networkMonitor.isOnline {
+                        showAddVaccinationSheet = true
+                    } else {
+                        offlineAlertMessage = "Добавление прививки недоступно без интернета"
+                        showOfflineAlert = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .foregroundColor(PetCareTheme.primary)
+                        .foregroundColor(networkMonitor.isOnline ? PetCareTheme.primary : .gray)
                 }
+                .disabled(!networkMonitor.isOnline)
             }
             if pet.vaccinations.isEmpty {
                 Text("Прививки не добавлены")
@@ -256,16 +287,22 @@ struct PetDetailView: View {
                                 .background(PetCareTheme.primary.opacity(0.15))
                                 .clipShape(Capsule())
                             Button {
-                                Task {
-                                    guard var p = app.pets.first(where: { $0.id == petId }) else { return }
-                                    p.vaccinations.removeAll { $0.id == v.id }
-                                    await app.updatePet(p)
+                                if networkMonitor.isOnline {
+                                    Task {
+                                        guard var p = app.pets.first(where: { $0.id == petId }) else { return }
+                                        p.vaccinations.removeAll { $0.id == v.id }
+                                        await app.updatePet(p)
+                                    }
+                                } else {
+                                    offlineAlertMessage = "Удаление прривки недоступно без интернета"
+                                    showOfflineAlert = true
                                 }
                             } label: {
                                 Image(systemName: "trash")
-                                    .foregroundColor(.red)
+                                    .foregroundColor(networkMonitor.isOnline ? .red : .gray)
                                     .font(.system(size: 14))
                             }
+                            .disabled(!networkMonitor.isOnline)
                         }
                         HStack(spacing: 16) {
                             Text("Дата: \(v.date)")
@@ -291,11 +328,17 @@ struct PetDetailView: View {
                     .foregroundColor(PetCareTheme.primary)
                 Spacer()
                 Button {
-                    showAddTreatmentSheet = true
+                    if networkMonitor.isOnline {
+                        showAddTreatmentSheet = true
+                    } else {
+                        offlineAlertMessage = "Добавление обработки недоступно без интернета"
+                        showOfflineAlert = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .foregroundColor(PetCareTheme.primary)
+                        .foregroundColor(networkMonitor.isOnline ? PetCareTheme.primary : .gray)
                 }
+                .disabled(!networkMonitor.isOnline)
             }
             if pet.treatments.isEmpty {
                 Text("Обработки не добавлены")
@@ -316,16 +359,22 @@ struct PetDetailView: View {
                         }
                         Spacer()
                         Button {
-                            Task {
-                                guard var p = app.pets.first(where: { $0.id == petId }) else { return }
-                                p.treatments.removeAll { $0.id == t.id }
-                                await app.updatePet(p)
+                            if networkMonitor.isOnline {
+                                Task {
+                                    guard var p = app.pets.first(where: { $0.id == petId }) else { return }
+                                    p.treatments.removeAll { $0.id == t.id }
+                                    await app.updatePet(p)
+                                }
+                            } else {
+                                offlineAlertMessage = "Удаление обработки недоступно без интернета"
+                                showOfflineAlert = true
                             }
                         } label: {
                             Image(systemName: "trash")
-                                .foregroundColor(.red)
+                                .foregroundColor(networkMonitor.isOnline ? .red : .gray)
                                 .font(.system(size: 14))
                         }
+                        .disabled(!networkMonitor.isOnline)
                     }
                     .padding(14)
                     .petCareCardStyle()

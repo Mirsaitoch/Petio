@@ -10,9 +10,41 @@ import SwiftUI
 @MainActor
 final class AppState: ObservableObject {
     private let api: APIClientProtocol
+    let networkMonitor = NetworkMonitor()
+    private var networkObserverTask: Task<Void, Never>?
+
     init(api: APIClientProtocol = MockAPIClient()) {
         self.api = api
         self.customDiaryTags = Self.loadCustomTags()
+        // Start observing network changes
+        setupNetworkObserver()
+    }
+
+    private func setupNetworkObserver() {
+        networkObserverTask = Task {
+            for await isOnline in networkMonitor.$isOnline.values {
+                if isOnline {
+                    print("✅ Сеть восстановлена, синхронизирую данные...")
+                    await syncAllData()
+                }
+            }
+        }
+    }
+
+    deinit {
+        networkObserverTask?.cancel()
+    }
+
+    private func syncAllData() async {
+        // Перезагрузить все данные с сервера
+        do {
+            await loadPets()
+            await loadReminders()
+            await loadDiary()
+            print("✅ Данные синхронизированы")
+        } catch {
+            print("❌ Ошибка синхронизации: \(error)")
+        }
     }
 
     private static func loadCustomTags() -> [DiaryTag] {

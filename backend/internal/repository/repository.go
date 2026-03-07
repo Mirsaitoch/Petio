@@ -49,6 +49,7 @@ type ArticleRepository interface {
 
 type PostRepository interface {
 	List(ctx context.Context, userID string, club *string) ([]domain.Post, error)
+	ListPaginated(ctx context.Context, userID string, req domain.PostsRequest) (*domain.PostsResponse, error)
 	GetByID(ctx context.Context, id, userID string) (*domain.Post, error)
 	Create(ctx context.Context, p *domain.Post) error
 	Update(ctx context.Context, p *domain.Post) error

@@ -15,38 +15,38 @@ services:
       timeout: 5s
       retries: 5
 
-  triton:
-    build:
-      context: ./triton
-      dockerfile: Dockerfile
-    ports:
-      - "8010:8000"  # HTTP API
-      - "8011:8001"  # gRPC
-      - "8012:8002"  # Metrics
-    env_file:
-      - ./triton/.env
-    volumes:
-      - triton_models:/models
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 120s  # Время на загрузку моделей из S3
-
-  moderation_api:
-    build:
-      context: ./moderation_service
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      TRITON_URL: "triton:8001"
-      TRITON_HTTP_URL: "http://triton:8000"
-      TOKENIZERS_PATH: "/app/tokenizers"
-    depends_on:
-      triton:
-        condition: service_healthy
+#  triton:
+#    build:
+#      context: ./triton
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8010:8000"  # HTTP API
+#      - "8011:8001"  # gRPC
+#      - "8012:8002"  # Metrics
+#    env_file:
+#      - ./triton/.env
+#    volumes:
+#      - triton_models:/models
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 10
+#      start_period: 120s  # Время на загрузку моделей из S3
+#
+#  moderation_api:
+#    build:
+#      context: ./moderation_service
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8000:8000"
+#    environment:
+#      TRITON_URL: "triton:8001"
+#      TRITON_HTTP_URL: "http://triton:8000"
+#      TOKENIZERS_PATH: "/app/tokenizers"
+#    depends_on:
+#      triton:
+#        condition: service_healthy
 
   app:
     build:
@@ -66,9 +66,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      moderation_api:
-        condition: service_started
+#      moderation_api:
+#        condition: service_started
 
 volumes:
   postgres_data:
-  triton_models:
+#  triton_models:

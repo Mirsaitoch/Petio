@@ -35,6 +35,7 @@ func NewRouter(
 	r.Route("/v1", func(r chi.Router) {
 		r.Post("/auth/login", auth.Login)
 		r.Post("/auth/register", auth.Register)
+		r.Post("/auth/refresh", auth.RefreshToken)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWT(jwtSecret))
@@ -73,7 +74,8 @@ func NewRouter(
 			})
 
 			r.Route("/posts", func(r chi.Router) {
-				r.Get("/", post.List)
+				r.Get("/", post.ListPaginated)
+				r.Get("/all", post.List)
 				r.Post("/", post.Create)
 				r.Get("/{id}", post.Get)
 				r.Put("/{id}", post.Update)
@@ -86,6 +88,7 @@ func NewRouter(
 
 			r.Post("/upload/pet-photo", upload.UploadPetPhoto)
 			r.Post("/upload/post-image", upload.UploadPostImage)
+			r.Post("/upload/avatar", upload.UploadAvatar)
 
 			r.Get("/profile", profile.Get)
 			r.Put("/profile", profile.Update)

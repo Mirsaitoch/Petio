@@ -135,3 +135,22 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	}
 	jsonResponse(w, http.StatusCreated, map[string]string{"url": urlStr})
 }
+
+// UploadAvatar godoc
+// @Summary      Загрузка аватара пользователя
+// @Tags         upload
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        file formData file true "Изображение (JPEG, PNG, GIF, WebP, до 10 MB)"
+// @Success      201 {object} map[string]string "url"
+// @Failure      400,413,503 {object} map[string]string "error"
+// @Router       /v1/upload/avatar [post]
+// @Security     BearerAuth
+func (h *UploadHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		jsonError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	h.upload(w, r, userID, "avatars")
+}

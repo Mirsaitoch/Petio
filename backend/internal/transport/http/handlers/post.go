@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -52,13 +53,61 @@ func (h *PostHandler) Get(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, http.StatusOK, p)
 }
 
-// List godoc
-// @Summary      Список постов
+// ListPaginated godoc
+// @Summary      Список постов с пагинацией
+// @Tags         posts
+// @Produce      json
+// @Param        limit query int false "количество записей (по умолчанию 20, максимум 50)"
+// @Param        after_id query string false "ID поста для загрузки старых"
+// @Param        before_id query string false "ID поста для загрузки новых"
+// @Param        club query string false "фильтр по клубу"
+// @Success      200 {object} domain.PostsResponse
+// @Router       /v1/posts [get]
+// @Security     BearerAuth
+func (h *PostHandler) ListPaginated(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		jsonError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	req := domain.PostsRequest{}
+
+	// Парсим параметры
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			req.Limit = limit
+		}
+	}
+
+	if afterID := r.URL.Query().Get("after_id"); afterID != "" {
+		req.AfterID = &afterID
+	}
+
+	if beforeID := r.URL.Query().Get("before_id"); beforeID != "" {
+		req.BeforeID = &beforeID
+	}
+
+	if club := r.URL.Query().Get("club"); club != "" {
+		req.Club = &club
+	}
+
+	result, err := h.repo.ListPaginated(r.Context(), userID, req)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, result)
+}
+
+// List - оставляем старый метод для совместимости
+// @Summary      Список всех постов (без пагинации)
 // @Tags         posts
 // @Produce      json
 // @Param        club query string false "фильтр по клубу"
 // @Success      200 {array} domain.Post
-// @Router       /v1/posts [get]
+// @Router       /v1/posts/all [get]
 // @Security     BearerAuth
 func (h *PostHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserIDFromContext(r.Context())
@@ -66,15 +115,18 @@ func (h *PostHandler) List(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+
 	var club *string
 	if c := r.URL.Query().Get("club"); c != "" {
 		club = &c
 	}
+
 	list, err := h.repo.List(r.Context(), userID, club)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	jsonResponse(w, http.StatusOK, list)
 }
 

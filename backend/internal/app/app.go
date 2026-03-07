@@ -13,8 +13,8 @@ import (
 	"petio/backend/internal/migrations"
 	"petio/backend/internal/repository/postgres"
 	"petio/backend/internal/service"
-	"petio/backend/internal/transport/http/handlers"
 	httptransport "petio/backend/internal/transport/http"
+	"petio/backend/internal/transport/http/handlers"
 )
 
 type App struct {
@@ -62,8 +62,9 @@ func New(cfg *config.Config) (*App, error) {
 	articleRepo := postgres.NewArticleRepository(db)
 	postRepo := postgres.NewPostRepository(db)
 	userRepo := postgres.NewUserRepository(db)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
 
-	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWT.Secret, cfg.JWT.Expiration)
+	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, cfg.JWT.Secret, cfg.JWT.Expiration)
 	petHandler := handlers.NewPetHandler(petRepo)
 	reminderHandler := handlers.NewReminderHandler(reminderRepo)
 	weightHandler := handlers.NewWeightHandler(weightRepo)

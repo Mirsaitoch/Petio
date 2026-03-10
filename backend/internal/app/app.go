@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"petio/backend/clients/kserve"
+	"petio/backend/clients/moderation"
 	"petio/backend/clients/s3"
 	"petio/backend/internal/config"
 	"petio/backend/internal/migrations"
@@ -33,9 +35,11 @@ func New(cfg *config.Config) (*App, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+
 	kc := kserve.New(cfg.KServe.BaseURL)
+
 	if !cfg.S3.S3Configured() {
-		msg := "S3 required at startup. Check .env (see config log for loaded path). Missing:"
+		msg := "S3 required at startup. Missing:"
 		if cfg.S3.Bucket == "" {
 			msg += " S3_BUCKET"
 		}
@@ -47,6 +51,7 @@ func New(cfg *config.Config) (*App, error) {
 		}
 		return nil, fmt.Errorf("%s", msg)
 	}
+
 	s3Client := s3.New(s3.Config{
 		Bucket:          cfg.S3.Bucket,
 		Region:          cfg.S3.Region,
@@ -55,6 +60,16 @@ func New(cfg *config.Config) (*App, error) {
 		AccessKeyID:     cfg.S3.AccessKeyID,
 		SecretAccessKey: cfg.S3.SecretAccessKey,
 	})
+
+	// ── Moderation client (nil if URL empty) ──
+	modClient := moderation.New(cfg.Moderation.BaseURL)
+	if modClient != nil {
+		log.Printf("moderation: enabled at %s", cfg.Moderation.BaseURL)
+	} else {
+		log.Println("moderation: disabled (MODERATION_URL not set)")
+	}
+	thresholds := moderation.DefaultThresholds()
+
 	petRepo := postgres.NewPetRepository(db)
 	reminderRepo := postgres.NewReminderRepository(db)
 	weightRepo := postgres.NewWeightRepository(db)
@@ -70,15 +85,16 @@ func New(cfg *config.Config) (*App, error) {
 	weightHandler := handlers.NewWeightHandler(weightRepo)
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
-	postHandler := handlers.NewPostHandler(postRepo, userRepo)
+	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient, thresholds)
 	chatService := service.NewChatService(kc)
 	chatHandler := handlers.NewChatHandler(chatService)
-	profileHandler := handlers.NewProfileHandler(userRepo)
-	uploadHandler := handlers.NewUploadHandler(s3Client)
+	profileHandler := handlers.NewProfileHandler(userRepo, modClient, thresholds)
+	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)
 
 	router := httptransport.NewRouter(
 		authHandler, petHandler, reminderHandler, weightHandler,
-		diaryHandler, articleHandler, postHandler, chatHandler, profileHandler, uploadHandler,
+		diaryHandler, articleHandler, postHandler, chatHandler,
+		profileHandler, uploadHandler,
 		cfg.JWT.Secret,
 	)
 

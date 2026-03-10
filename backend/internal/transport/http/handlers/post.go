@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
+	"petio/backend/clients/moderation"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -13,12 +16,49 @@ import (
 )
 
 type PostHandler struct {
-	repo     repository.PostRepository
-	userRepo repository.UserRepository
+	repo       repository.PostRepository
+	userRepo   repository.UserRepository
+	mod        *moderation.Client
+	thresholds moderation.Thresholds
 }
 
-func NewPostHandler(repo repository.PostRepository, userRepo repository.UserRepository) *PostHandler {
-	return &PostHandler{repo: repo, userRepo: userRepo}
+func NewPostHandler(
+	repo repository.PostRepository,
+	userRepo repository.UserRepository,
+	mod *moderation.Client,
+	thresholds moderation.Thresholds,
+) *PostHandler {
+	return &PostHandler{
+		repo:       repo,
+		userRepo:   userRepo,
+		mod:        mod,
+		thresholds: thresholds,
+	}
+}
+
+func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
+	if h.mod == nil {
+		return nil
+	}
+	for _, t := range texts {
+		if t == "" {
+			continue
+		}
+		scores, err := h.mod.CheckText(r.Context(), t)
+		if err != nil {
+			log.Printf("WARNING: text moderation failed: %v", err)
+			continue
+		}
+		if scores == nil {
+			continue
+		}
+		d := h.thresholds.Evaluate(scores)
+		if d.Block {
+			return fmt.Errorf("text rejected: %s (toxic=%.2f, obscene=%.2f, threat=%.2f)",
+				d.Reason, scores.Toxic, scores.Obscene, scores.Threat)
+		}
+	}
+	return nil
 }
 
 // Get godoc
@@ -70,34 +110,26 @@ func (h *PostHandler) ListPaginated(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-
 	req := domain.PostsRequest{}
-
-	// Парсим параметры
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil {
 			req.Limit = limit
 		}
 	}
-
 	if afterID := r.URL.Query().Get("after_id"); afterID != "" {
 		req.AfterID = &afterID
 	}
-
 	if beforeID := r.URL.Query().Get("before_id"); beforeID != "" {
 		req.BeforeID = &beforeID
 	}
-
 	if club := r.URL.Query().Get("club"); club != "" {
 		req.Club = &club
 	}
-
 	result, err := h.repo.ListPaginated(r.Context(), userID, req)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	jsonResponse(w, http.StatusOK, result)
 }
 
@@ -115,18 +147,15 @@ func (h *PostHandler) List(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-
 	var club *string
 	if c := r.URL.Query().Get("club"); c != "" {
 		club = &c
 	}
-
 	list, err := h.repo.List(r.Context(), userID, club)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	jsonResponse(w, http.StatusOK, list)
 }
 
@@ -150,6 +179,12 @@ func (h *PostHandler) Create(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+
+	if err := h.checkTexts(r, p.Content); err != nil {
+		jsonError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	p.UserID = userID
 	if profile, err := h.userRepo.GetProfile(r.Context(), userID); err == nil && profile != nil {
 		p.Author = profile.Username
@@ -188,6 +223,12 @@ func (h *PostHandler) Update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+
+	if err := h.checkTexts(r, p.Content); err != nil {
+		jsonError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	p.ID = id
 	p.UserID = userID
 	if err := h.repo.Update(r.Context(), &p); err != nil {
@@ -282,6 +323,12 @@ func (h *PostHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+
+	if err := h.checkTexts(r, c.Content); err != nil {
+		jsonError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	c.PostID = postID
 	if profile, err := h.userRepo.GetProfile(r.Context(), userID); err == nil && profile != nil {
 		c.Author = profile.Username

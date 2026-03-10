@@ -3,8 +3,10 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"path"
+	"petio/backend/clients/moderation"
 	"strings"
 
 	"github.com/google/uuid"
@@ -35,11 +37,12 @@ func extByContentType(ct string) string {
 }
 
 type UploadHandler struct {
-	s3 *s3.Client
+	s3  *s3.Client
+	mod *moderation.Client
 }
 
-func NewUploadHandler(s3Client *s3.Client) *UploadHandler {
-	return &UploadHandler{s3: s3Client}
+func NewUploadHandler(s3Client *s3.Client, modClient *moderation.Client) *UploadHandler {
+	return &UploadHandler{s3: s3Client, mod: modClient}
 }
 
 // UploadPetPhoto godoc
@@ -99,6 +102,7 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		return
 	}
 	defer file.Close()
+
 	ct := header.Header.Get("Content-Type")
 	if ct == "" {
 		ct = "application/octet-stream"
@@ -107,6 +111,7 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		jsonError(w, http.StatusBadRequest, "only images (jpeg, png, gif, webp) allowed")
 		return
 	}
+
 	body, err := io.ReadAll(io.LimitReader(file, maxUploadSize))
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
@@ -116,6 +121,24 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		jsonError(w, http.StatusBadRequest, "empty file")
 		return
 	}
+
+	// ── ML image moderation ──
+	if h.mod != nil {
+		scores, err := h.mod.CheckImage(r.Context(), body, header.Filename)
+		if err != nil {
+			log.Printf("WARNING: image moderation failed: %v", err)
+		} else if scores != nil && scores.Block {
+			reason := "inappropriate_content"
+			if scores.Reason != nil {
+				reason = *scores.Reason
+			}
+			jsonError(w, http.StatusUnprocessableEntity,
+				fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
+					reason, scores.NSFWScore, scores.PornScore, scores.ViolenceScore, scores.AbuseScore))
+			return
+		}
+	}
+
 	ext := extByContentType(ct)
 	if ext == "" {
 		if e := strings.ToLower(path.Ext(header.Filename)); e == ".jpg" || e == ".jpeg" || e == ".png" || e == ".gif" || e == ".webp" {
@@ -127,6 +150,7 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 			ext = ".jpg"
 		}
 	}
+
 	key := fmt.Sprintf("%s/%s/%s%s", prefix, userID, uuid.New().String(), ext)
 	urlStr, err := h.s3.Upload(r.Context(), key, body, ct)
 	if err != nil {

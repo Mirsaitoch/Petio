@@ -1,17 +1,17 @@
 name: "text_toxicity"
 platform: "onnxruntime_onnx"
-max_batch_size: 16
+max_batch_size: 0
 
 input [
   {
     name: "input_ids"
     data_type: TYPE_INT64
-    dims: [-1]  # динамическая длина последовательности
+    dims: [1, -1]  # динамическая длина последовательности
   },
   {
     name: "attention_mask"
     data_type: TYPE_INT64
-    dims: [-1]
+    dims: [1, -1]
   }
 ]
 
@@ -19,7 +19,7 @@ output [
   {
     name: "logits"
     data_type: TYPE_FP32
-    dims: [7]  # количество категорий токсичности
+    dims: [1, 16] 
   }
 ]
 

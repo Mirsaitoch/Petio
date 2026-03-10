@@ -9,9 +9,11 @@ CLASSES_NAME = [
 
 LABELS = [
     # safe
+    "neutral photo",
+    "default photo",
     "a normal photo",
     "happy pet",
-    "films cadr",
+    "still from the film",
     
     # nsfw related
     "pornographic image",

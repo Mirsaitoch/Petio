@@ -13,4 +13,6 @@ enum AppRoute: Hashable {
     case health
     case feed
     case chat
+    case shelters
+    case shelterDetail(Shelter)
 }

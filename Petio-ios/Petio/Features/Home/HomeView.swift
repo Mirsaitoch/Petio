@@ -39,6 +39,10 @@ struct HomeView: View {
                     FeedView()
                 case .chat:
                     ChatView(onDismiss: { path.removeAll() })
+                case .shelters:
+                    SheltersListView()
+                case .shelterDetail(let shelter):
+                    ShelterDetailView(shelter: shelter)
                 }
             }
             .onAppear {
@@ -263,7 +267,7 @@ struct HomeView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(PetCareTheme.primary)
                 .padding(.horizontal, 20)
-            
+
             HStack(spacing: 12) {
                 quickActionCard(title: "Советы AI", icon: "stethoscope", color: Color.green) {
                     path.append(.chat)
@@ -272,6 +276,35 @@ struct HomeView: View {
                     path.append(.feed)
                 }
             }
+            .padding(.horizontal, 20)
+
+            Button {
+                path.append(.shelters)
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "pawprint.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.orange)
+                        .frame(width: 40, height: 40)
+                        .background(Color.orange.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Фонды и приюты")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(PetCareTheme.primary)
+                        Text("6 организаций")
+                            .font(.system(size: 11))
+                            .foregroundColor(PetCareTheme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(PetCareTheme.muted)
+                }
+                .padding(14)
+                .petCareCardStyle()
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 20)
         }
         .padding(.top, 20)

@@ -20,9 +20,9 @@ services:
       context: ./triton
       dockerfile: Dockerfile
     ports:
-      - "8010:8000"  # HTTP API
-      - "8011:8001"  # gRPC
-      - "8012:8002"  # Metrics
+      - "8010:8000"
+      - "8011:8001"
+      - "8012:8002"
     env_file:
       - ./triton/.env
     volumes:
@@ -32,7 +32,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 120s  # Время на загрузку моделей из S3
+      start_period: 360s
+
 
   moderation_api:
     build:

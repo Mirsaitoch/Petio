@@ -3,7 +3,6 @@ set -e
 
 echo "Downloading models from S3..."
 python /opt/tritonserver/download_models.py
-
 echo "Starting Triton Inference Server..."
 tritonserver \
     --model-repository=/models \

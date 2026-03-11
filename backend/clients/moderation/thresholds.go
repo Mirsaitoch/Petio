@@ -1,20 +1,23 @@
 package moderation
 
+// TODO make dynamic cfg
 type Thresholds struct {
-	Toxic        float64
-	Obscene      float64
-	Threat       float64
-	Insult       float64
-	IdentityHate float64
+	Toxic          float64
+	Obscene        float64
+	Threat         float64
+	Insult         float64
+	IdentityAttack float64
+	SexualExplicit float64
 }
 
 func DefaultThresholds() Thresholds {
 	return Thresholds{
-		Toxic:        0.7,
-		Obscene:      0.7,
-		Threat:       0.7,
-		Insult:       0.8,
-		IdentityHate: 0.7,
+		Toxic:          0.8,
+		Obscene:        0.8,
+		Threat:         0.8,
+		Insult:         0.8,
+		IdentityAttack: 0.8,
+		SexualExplicit: 0.8,
 	}
 }
 
@@ -31,10 +34,12 @@ func (t Thresholds) Evaluate(s *TextScores) TextDecision {
 		return TextDecision{Block: true, Reason: "obscene_content"}
 	case s.Threat > t.Threat:
 		return TextDecision{Block: true, Reason: "threat"}
-	case s.IdentityHate > t.IdentityHate:
-		return TextDecision{Block: true, Reason: "identity_hate"}
+	case s.IdentityAttack > t.IdentityAttack:
+		return TextDecision{Block: true, Reason: "identity_attack"}
 	case s.Insult > t.Insult:
 		return TextDecision{Block: true, Reason: "insult"}
+	case s.SexualExplicit > t.SexualExplicit:
+		return TextDecision{Block: true, Reason: "sexual_explicit"}
 	}
 	return TextDecision{}
 }

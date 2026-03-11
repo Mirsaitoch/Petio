@@ -52,6 +52,8 @@ func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
 		if scores == nil {
 			continue
 		}
+		l, _ := json.MarshalIndent(scores, "", "  ")
+		log.Println(string(l))
 		d := h.thresholds.Evaluate(scores)
 		if d.Block {
 			return fmt.Errorf("text rejected: %s (toxic=%.2f, obscene=%.2f, threat=%.2f)",

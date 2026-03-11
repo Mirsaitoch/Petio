@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"time"
 )
 
@@ -29,12 +31,13 @@ func New(baseURL string) *Client {
 // --- Text ---
 
 type TextScores struct {
-	Toxic        float64 `json:"toxic"`
-	SevereToxic  float64 `json:"severe_toxic"`
-	Obscene      float64 `json:"obscene"`
-	Threat       float64 `json:"threat"`
-	Insult       float64 `json:"insult"`
-	IdentityHate float64 `json:"identity_hate"`
+	Toxic          float64 `json:"toxicity"`
+	SevereToxic    float64 `json:"severe_toxicity"`
+	Obscene        float64 `json:"obscene"`
+	Threat         float64 `json:"threat"`
+	Insult         float64 `json:"insult"`
+	IdentityAttack float64 `json:"identity_attack"`
+	SexualExplicit float64 `json:"sexual_explicit"`
 }
 
 func (c *Client) CheckText(ctx context.Context, text string) (*TextScores, error) {
@@ -79,13 +82,27 @@ type ImageScores struct {
 	Reason        *string `json:"reason"`
 }
 
+func detectImageContentType(data []byte) string {
+	ct := http.DetectContentType(data)
+	if ct == "application/octet-stream" {
+		return "image/jpeg"
+	}
+	return ct
+}
+
 func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename string) (*ImageScores, error) {
 	if c == nil {
 		return nil, nil
 	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	part, err := w.CreateFormFile("image", filename)
+
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition",
+		fmt.Sprintf(`form-data; name="image"; filename="%s"`, filename))
+	partHeader.Set("Content-Type", detectImageContentType(imageBytes))
+
+	part, err := w.CreatePart(partHeader)
 	if err != nil {
 		return nil, fmt.Errorf("moderation: form: %w", err)
 	}
@@ -114,5 +131,7 @@ func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename str
 	if err := json.NewDecoder(resp.Body).Decode(&scores); err != nil {
 		return nil, fmt.Errorf("moderation: decode: %w", err)
 	}
+	l, _ := json.MarshalIndent(scores, "", "  ")
+	log.Printf("Check Image: %s\n", string(l))
 	return &scores, nil
 }

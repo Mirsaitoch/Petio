@@ -47,10 +47,10 @@ scipy==1.13.1
 starlette==0.49.3
 sympy==1.14.0
 tokenizers==0.22.2
-torch==2.8.0
 tqdm==4.67.3
 transformers==4.57.6
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==1.26.20
 uvicorn==0.39.0
+tritonclient[grpc]>=2.40.0

@@ -2,18 +2,27 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
+	"petio/backend/clients/moderation"
 
 	"petio/backend/internal/repository"
 	"petio/backend/internal/transport/http/handlers/middleware"
 )
 
 type ProfileHandler struct {
-	repo repository.UserRepository
+	repo       repository.UserRepository
+	mod        *moderation.Client
+	thresholds moderation.Thresholds
 }
 
-func NewProfileHandler(repo repository.UserRepository) *ProfileHandler {
-	return &ProfileHandler{repo: repo}
+func NewProfileHandler(
+	repo repository.UserRepository,
+	mod *moderation.Client,
+	thresholds moderation.Thresholds,
+) *ProfileHandler {
+	return &ProfileHandler{repo: repo, mod: mod, thresholds: thresholds}
 }
 
 // Get godoc
@@ -67,6 +76,30 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+
+	// ── text moderation for profile fields ──
+	if h.mod != nil {
+		for _, text := range []string{p.Bio, p.Name, p.Username} {
+			if text == "" {
+				continue
+			}
+			scores, err := h.mod.CheckText(r.Context(), text)
+			if err != nil {
+				log.Printf("WARNING: profile text moderation failed: %v", err)
+				continue
+			}
+			if scores == nil {
+				continue
+			}
+			d := h.thresholds.Evaluate(scores)
+			if d.Block {
+				jsonError(w, http.StatusUnprocessableEntity,
+					fmt.Sprintf("text rejected: %s", d.Reason))
+				return
+			}
+		}
+	}
+
 	profile, err := h.repo.GetProfile(r.Context(), userID)
 	if err != nil || profile == nil {
 		jsonError(w, http.StatusInternalServerError, "profile not found")

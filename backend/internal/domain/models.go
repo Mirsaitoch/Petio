@@ -38,10 +38,10 @@ type Reminder struct {
 type ReminderType string
 
 const (
-	ReminderFeeding    ReminderType = "feeding"
+	ReminderFeeding     ReminderType = "feeding"
 	ReminderVaccination ReminderType = "vaccination"
-	ReminderDeworming  ReminderType = "deworming"
-	ReminderGrooming   ReminderType = "grooming"
+	ReminderDeworming   ReminderType = "deworming"
+	ReminderGrooming    ReminderType = "grooming"
 )
 
 type WeightRecord struct {

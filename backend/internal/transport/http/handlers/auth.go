@@ -1,11 +1,16 @@
 package handlers
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"petio/backend/internal/repository/postgres"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"petio/backend/internal/domain"
@@ -13,13 +18,19 @@ import (
 )
 
 type AuthHandler struct {
-	repo   repository.UserRepository
-	secret string
-	expHrs int
+	repo        repository.UserRepository
+	refreshRepo *postgres.RefreshTokenRepository
+	secret      string
+	expHrs      int
 }
 
-func NewAuthHandler(repo repository.UserRepository, secret string, expHrs int) *AuthHandler {
-	return &AuthHandler{repo: repo, secret: secret, expHrs: expHrs}
+func NewAuthHandler(repo repository.UserRepository, refreshRepo *postgres.RefreshTokenRepository, secret string, expHrs int) *AuthHandler {
+	return &AuthHandler{
+		repo:        repo,
+		refreshRepo: refreshRepo,
+		secret:      secret,
+		expHrs:      expHrs,
+	}
 }
 
 // Login godoc
@@ -54,7 +65,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	jsonResponse(w, http.StatusOK, map[string]string{"token": token})
+
+	refreshToken, err := h.issueRefreshToken(r.Context(), u.ID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"token":        token,
+		"refreshToken": refreshToken,
+	})
 }
 
 // Register godoc
@@ -99,7 +120,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	jsonResponse(w, http.StatusCreated, map[string]string{"token": token})
+
+	refreshToken, err := h.issueRefreshToken(r.Context(), u.ID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"token":        token,
+		"refreshToken": refreshToken,
+	})
 }
 
 func (h *AuthHandler) issueToken(userID string) (string, error) {
@@ -110,4 +141,74 @@ func (h *AuthHandler) issueToken(userID string) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(h.secret))
+}
+
+// RefreshToken godoc
+// @Summary      Обновить access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body object true "refreshToken"
+// @Success      200 {object} map[string]string "token, refreshToken"
+// @Failure      401 {object} map[string]string "error"
+// @Router       /v1/auth/refresh [post]
+func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	tokenHash := hashToken(body.RefreshToken)
+	userID, expiresAt, err := h.refreshRepo.GetUserIDByTokenHash(r.Context(), tokenHash)
+	if err != nil || userID == "" {
+		jsonError(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+
+	if time.Now().After(expiresAt) {
+		_ = h.refreshRepo.DeleteByTokenHash(r.Context(), tokenHash)
+		jsonError(w, http.StatusUnauthorized, "refresh token expired")
+		return
+	}
+
+	// Удаляем старый refresh token
+	_ = h.refreshRepo.DeleteByTokenHash(r.Context(), tokenHash)
+
+	// Выпускаем новые токены
+	token, err := h.issueToken(userID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	refreshToken, err := h.issueRefreshToken(r.Context(), userID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"token":        token,
+		"refreshToken": refreshToken,
+	})
+}
+
+func (h *AuthHandler) issueRefreshToken(ctx context.Context, userID string) (string, error) {
+	tokenStr := uuid.New().String() + uuid.New().String()
+	tokenHash := hashToken(tokenStr)
+	expiresAt := time.Now().Add(30 * 24 * time.Hour) // 30 дней
+
+	if err := h.refreshRepo.Save(ctx, userID, tokenHash, expiresAt); err != nil {
+		return "", err
+	}
+
+	return tokenStr, nil
+}
+
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
 }

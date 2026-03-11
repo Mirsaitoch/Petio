@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	HTTPAddr string
-	DB       DBConfig
-	KServe   KServeConfig
-	S3       S3Config
-	JWT      JWTConfig
+	HTTPAddr   string
+	DB         DBConfig
+	KServe     KServeConfig
+	S3         S3Config
+	JWT        JWTConfig
+	Moderation ModerationConfig // <-- NEW
 }
 
 type DBConfig struct {
@@ -33,6 +34,10 @@ type S3Config struct {
 	BaseURL         string
 	AccessKeyID     string
 	SecretAccessKey string
+}
+
+type ModerationConfig struct {
+	BaseURL string
 }
 
 // S3Configured возвращает true, если заданы бакет и ключи доступа (S3 обязателен для загрузки).
@@ -83,6 +88,9 @@ func Load() *Config {
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", "change-me-in-production"),
 			Expiration: 24 * 7,
+		},
+		Moderation: ModerationConfig{
+			BaseURL: getEnv("MODERATION_URL", ""),
 		},
 	}
 }

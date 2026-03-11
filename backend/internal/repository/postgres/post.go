@@ -3,6 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -178,4 +181,121 @@ func (r *PostRepository) commentsByPostID(ctx context.Context, postID string) ([
 		list = append(list, c)
 	}
 	return list, rows.Err()
+}
+func (r *PostRepository) ListPaginated(ctx context.Context, userID string, req domain.PostsRequest) (*domain.PostsResponse, error) {
+	// Значение по умолчанию
+	if req.Limit <= 0 || req.Limit > 50 {
+		req.Limit = 20
+	}
+
+	baseQuery := `
+		SELECT p.id, p.user_id, COALESCE(NULLIF(u.username,''), p.author), u.avatar,
+		       p.content, p.image, p.likes, p.club, p.timestamp
+		FROM posts p
+		LEFT JOIN users u ON u.id = p.user_id`
+
+	var conditions []string
+	var args []interface{}
+	argNum := 0
+
+	// Загрузка старых постов (скролл вниз)
+	if req.AfterID != nil {
+		var afterTime time.Time
+		err := r.db.QueryRowContext(ctx,
+			"SELECT timestamp FROM posts WHERE id = $1", *req.AfterID).Scan(&afterTime)
+		if err == nil {
+			argNum++
+			conditions = append(conditions, fmt.Sprintf("p.timestamp < $%d", argNum))
+			args = append(args, afterTime)
+		}
+	}
+
+	// Загрузка новых постов (pull-to-refresh)
+	if req.BeforeID != nil {
+		var beforeTime time.Time
+		err := r.db.QueryRowContext(ctx,
+			"SELECT timestamp FROM posts WHERE id = $1", *req.BeforeID).Scan(&beforeTime)
+		if err == nil {
+			argNum++
+			conditions = append(conditions, fmt.Sprintf("p.timestamp > $%d", argNum))
+			args = append(args, beforeTime)
+		}
+	}
+
+	// Фильтр по клубу
+	if req.Club != nil && *req.Club != "" && *req.Club != "Все" {
+		argNum++
+		conditions = append(conditions, fmt.Sprintf("p.club = $%d", argNum))
+		args = append(args, *req.Club)
+	}
+
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Запрашиваем +1 для определения hasMore
+	query := baseQuery + where + fmt.Sprintf(" ORDER BY p.timestamp DESC LIMIT %d", req.Limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	posts := make([]domain.Post, 0, req.Limit)
+	count := 0
+
+	for rows.Next() {
+		if count >= req.Limit {
+			break // Есть еще посты
+		}
+
+		var p domain.Post
+		var avatar, img sql.NullString
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Author, &avatar,
+			&p.Content, &img, &p.Likes, &p.Club, &p.Timestamp); err != nil {
+			return nil, err
+		}
+
+		if avatar.Valid {
+			p.Avatar = &avatar.String
+		}
+		if img.Valid {
+			p.Image = &img.String
+		}
+
+		// Проверяем лайк
+		var liked bool
+		_ = r.db.QueryRowContext(ctx,
+			`SELECT true FROM post_likes WHERE post_id = $1 AND user_id = $2`,
+			p.ID, userID).Scan(&liked)
+		p.Liked = liked
+
+		// Получаем комментарии
+		p.Comments, _ = r.commentsByPostID(ctx, p.ID)
+
+		posts = append(posts, p)
+		count++
+	}
+
+	// Проверяем, есть ли еще посты
+	hasMore := count == req.Limit && rows.Next()
+
+	// Проверяем есть ли новые посты (для показа индикатора)
+	hasNew := false
+	if req.BeforeID == nil && len(posts) > 0 {
+		var newestID string
+		err = r.db.QueryRowContext(ctx,
+			"SELECT id FROM posts ORDER BY timestamp DESC LIMIT 1").Scan(&newestID)
+		if err == nil && len(posts) > 0 {
+			hasNew = newestID != posts[0].ID
+		}
+	}
+
+	return &domain.PostsResponse{
+		Posts:   posts,
+		HasMore: hasMore,
+		HasNew:  hasNew,
+	}, nil
 }

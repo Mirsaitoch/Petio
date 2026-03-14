@@ -49,19 +49,9 @@ struct PetListViewModel: View {
 struct PetListRow: View {
     let pet: Pet
 
-    private func speciesEmoji(_ s: String) -> String {
-        switch s {
-        case "Собака": return "🐕"
-        case "Кошка": return "🐱"
-        case "Птица": return "🦜"
-        case "Кролик": return "🐰"
-        default: return "🐾"
-        }
-    }
-
     var body: some View {
         HStack(spacing: 16) {
-            AvatarView(url: pet.photo, placeholder: speciesEmoji(pet.species), size: 80)
+            AvatarView(url: pet.photo, imageName: speciesImageName(pet.species), size: 80)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(pet.name)

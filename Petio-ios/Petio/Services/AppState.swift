@@ -10,12 +10,14 @@ import SwiftUI
 @MainActor
 final class AppState: ObservableObject {
     private let api: APIClientProtocol
+    var authManager: AuthManager?
     let networkMonitor = NetworkMonitor()
     private var networkObserverTask: Task<Void, Never>?
 
-    init(api: APIClientProtocol = MockAPIClient()) {
+    init(api: APIClientProtocol = MockAPIClient(), authManager: AuthManager? = nil) {
         self.api = api
-        self.customDiaryTags = Self.loadCustomTags()
+        self.authManager = authManager
+        self.customDiaryTags = LocalStorage.load(from: .tags) ?? []
         // Start observing network changes
         setupNetworkObserver()
     }
@@ -24,7 +26,6 @@ final class AppState: ObservableObject {
         networkObserverTask = Task {
             for await isOnline in networkMonitor.$isOnline.values {
                 if isOnline {
-                    print("✅ Сеть восстановлена, синхронизирую данные...")
                     await syncAllData()
                 }
             }
@@ -36,27 +37,42 @@ final class AppState: ObservableObject {
     }
 
     private func syncAllData() async {
-        // Перезагрузить все данные с сервера
-        do {
-            await loadPets()
-            await loadReminders()
-            await loadDiary()
-            print("✅ Данные синхронизированы")
-        } catch {
-            print("❌ Ошибка синхронизации: \(error)")
+        guard authManager?.isAuthenticated == true else { return }
+        print("✅ Сеть восстановлена, отправляю локальные данные на сервер...")
+        await pushPetsToServer()
+        await pushRemindersToServer()
+        await pushDiaryToServer()
+        print("✅ Локальные данные синхронизированы с сервером")
+    }
+
+    private func pushPetsToServer() async {
+        for pet in pets {
+            do {
+                _ = try await api.updatePet(pet)
+            } catch {
+                _ = try? await api.addPet(pet)
+            }
         }
     }
 
-    private static func loadCustomTags() -> [DiaryTag] {
-        guard let data = UserDefaults.standard.data(forKey: customTagsKey),
-              let tags = try? JSONDecoder().decode([DiaryTag].self, from: data)
-        else { return [] }
-        return tags
+    private func pushRemindersToServer() async {
+        for reminder in reminders {
+            // Try update first; if not found on server, add it
+            do {
+                _ = try await api.addReminder(reminder)
+            } catch {
+                // reminder may already exist; ignore duplicate errors
+            }
+        }
     }
 
-    private func saveCustomTags() {
-        if let data = try? JSONEncoder().encode(customDiaryTags) {
-            UserDefaults.standard.set(data, forKey: Self.customTagsKey)
+    private func pushDiaryToServer() async {
+        for entry in diary {
+            do {
+                _ = try await api.addDiaryEntry(entry)
+            } catch {
+                // entry may already exist; ignore duplicate errors
+            }
         }
     }
 
@@ -82,56 +98,33 @@ final class AppState: ObservableObject {
     @Published var articles: [Article] = []
     @Published var posts: [Post] = []
     @Published var isPostUploading = false
+    @Published var postsLoadFailed = false
     @Published var chatMessages: [ChatMessage] = []
     @Published var user: UserProfile = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     @Published var selectedPetId: String = ""
     @Published var customDiaryTags: [DiaryTag] = []
-    private static let customTagsKey = "petio_custom_diary_tags"
-    private static let savedPetsKey = "petio_saved_pets"
-    private static let savedDiaryKey = "petio_saved_diary"
-    private static let savedWeightKey = "petio_saved_weight"
+    @Published var selectedTab: AppTab = .home
 
-    // MARK: - Pets local persistence helpers
-    private static func loadSavedPets() -> [Pet]? {
-        guard let data = UserDefaults.standard.data(forKey: savedPetsKey),
-              let saved = try? JSONDecoder().decode([Pet].self, from: data),
-              !saved.isEmpty
-        else { return nil }
-        return saved
-    }
+    // MARK: - LocalStorage helpers
 
     private func savePets() {
-        if let data = try? JSONEncoder().encode(pets) {
-            UserDefaults.standard.set(data, forKey: Self.savedPetsKey)
-        }
-    }
-
-    // MARK: - Diary local persistence helpers
-    private static func loadSavedDiary() -> [HealthDiaryEntry]? {
-        guard let data = UserDefaults.standard.data(forKey: savedDiaryKey),
-              let saved = try? JSONDecoder().decode([HealthDiaryEntry].self, from: data)
-        else { return nil }
-        return saved
+        LocalStorage.save(pets, to: .pets)
     }
 
     private func saveDiary() {
-        if let data = try? JSONEncoder().encode(diary) {
-            UserDefaults.standard.set(data, forKey: Self.savedDiaryKey)
-        }
-    }
-
-    // MARK: - Weight history local persistence helpers
-    private static func loadSavedWeightHistory() -> [String: [WeightRecord]]? {
-        guard let data = UserDefaults.standard.data(forKey: savedWeightKey),
-              let saved = try? JSONDecoder().decode([String: [WeightRecord]].self, from: data)
-        else { return nil }
-        return saved
+        LocalStorage.save(diary, to: .diary)
     }
 
     private func saveWeightHistory() {
-        if let data = try? JSONEncoder().encode(weightHistory) {
-            UserDefaults.standard.set(data, forKey: Self.savedWeightKey)
-        }
+        LocalStorage.save(weightHistory, to: .weight)
+    }
+
+    private func saveCustomTags() {
+        LocalStorage.save(customDiaryTags, to: .tags)
+    }
+
+    private func saveReminders() {
+        LocalStorage.save(reminders, to: .reminders)
     }
 
     // MARK: - Load from API (business logic)
@@ -150,29 +143,37 @@ final class AppState: ObservableObject {
     }
 
     func loadPets() async {
-        if let saved = Self.loadSavedPets() {
+        if let saved: [Pet] = LocalStorage.load(from: .pets) {
             pets = saved
             return
         }
+        guard authManager?.isAuthenticated == true else { return }
         do {
-            pets = try await api.fetchPets()
+            let fetched = try await api.fetchPets()
+            pets = fetched
+            savePets()
         } catch {
             // keep current state on error
         }
     }
 
     func loadReminders() async {
+        if let saved: [Reminder] = LocalStorage.load(from: .reminders) {
+            reminders = saved
+            return
+        }
+        guard authManager?.isAuthenticated == true else { return }
         do {
             reminders = try await api.fetchReminders(petId: nil)
+            saveReminders()
         } catch {
             // keep current state on error
         }
     }
 
     func loadWeightHistory() async {
-        if let saved = Self.loadSavedWeightHistory() {
+        if let saved: [String: [WeightRecord]] = LocalStorage.load(from: .weight) {
             weightHistory = saved
-            // Update pet weights from history
             for (petId, records) in weightHistory {
                 if let latest = records.last, let i = pets.firstIndex(where: { $0.id == petId }) {
                     pets[i].weight = latest.weight
@@ -180,11 +181,11 @@ final class AppState: ObservableObject {
             }
             return
         }
+        guard authManager?.isAuthenticated == true else { return }
         for id in pets.map(\.id) {
             do {
                 let list = try await api.fetchWeightHistory(petId: id)
                 weightHistory[id] = list
-                // Update pet weight from latest record
                 if let latest = list.last, let i = pets.firstIndex(where: { $0.id == id }) {
                     pets[i].weight = latest.weight
                 }
@@ -192,14 +193,15 @@ final class AppState: ObservableObject {
                 weightHistory[id] = weightHistory[id] ?? []
             }
         }
+        saveWeightHistory()
     }
 
     func loadDiary() async {
-        if let saved = Self.loadSavedDiary() {
+        if let saved: [HealthDiaryEntry] = LocalStorage.load(from: .diary) {
             diary = saved
             return
         }
-        guard !pets.isEmpty else { return }
+        guard authManager?.isAuthenticated == true, !pets.isEmpty else { return }
         var all: [HealthDiaryEntry] = []
         for id in pets.map(\.id) {
             if let entries = try? await api.fetchDiary(petId: id) {
@@ -207,6 +209,7 @@ final class AppState: ObservableObject {
             }
         }
         diary = all
+        saveDiary()
     }
 
     func loadArticles() async {
@@ -218,14 +221,35 @@ final class AppState: ObservableObject {
     }
 
     func loadPosts() async {
+        postsLoadFailed = false
         do {
             posts = try await api.fetchPosts(club: nil)
         } catch {
-            // keep current state on error
+            if posts.isEmpty {
+                postsLoadFailed = true
+            }
         }
     }
 
     func loadProfile() async {
+        guard authManager?.isAuthenticated == true else {
+            // Guest: use anonymous profile from local storage or generate one
+            if let saved: UserProfile = LocalStorage.load(from: .profile) {
+                user = saved
+                return
+            }
+            let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk"]
+            let zoo = "\(animals.randomElement() ?? "pet")-\(Int.random(in: 10000...99999))"
+            let avatar = "ava_\(Int.random(in: 1...9))"
+            let guestProfile = UserProfile(username: zoo, email: nil, avatar: avatar, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+            user = guestProfile
+            LocalStorage.save(guestProfile, to: .profile)
+            return
+        }
+        // Try to use cached profile first, then refresh from API
+        if let cached: UserProfile = LocalStorage.load(from: .profile) {
+            user = cached
+        }
         do {
             var profile = try await api.fetchProfile()
 
@@ -261,22 +285,21 @@ final class AppState: ObservableObject {
             }
 
             user = profile
+            LocalStorage.save(profile, to: .profile)
         } catch {
-            // keep current state on error
+            // keep current state on error — user already set from cache above if available
         }
     }
 
     func resetUserSession() {
+        // Clear only remote/social data — local pets, reminders, diary stay
         user = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
-        pets = []
-        reminders = []
         posts = []
         chatMessages = []
+        LocalStorage.delete(file: .profile)
         UserDefaults.standard.removeObject(forKey: "petio_user_default_avatar")
         UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
-        UserDefaults.standard.removeObject(forKey: Self.savedPetsKey)
-        UserDefaults.standard.removeObject(forKey: Self.savedDiaryKey)
     }
 
     // MARK: - Mutations (business logic → API, then update state)
@@ -286,10 +309,7 @@ final class AppState: ObservableObject {
             pets.append(added)
             // Add initial weight record if weight > 0
             if added.weight > 0 {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-                let today = dateFormatter.string(from: Date())
+                let today = Self.dateString(from: Date())
                 let weightRecord = WeightRecord(date: today, weight: added.weight)
                 await addWeightRecord(petId: added.id, weightRecord)
             }
@@ -297,10 +317,7 @@ final class AppState: ObservableObject {
             pets.append(pet)
             // Add initial weight record if weight > 0
             if pet.weight > 0 {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-                let today = dateFormatter.string(from: Date())
+                let today = Self.dateString(from: Date())
                 let weightRecord = WeightRecord(date: today, weight: pet.weight)
                 await addWeightRecord(petId: pet.id, weightRecord)
             }
@@ -335,6 +352,7 @@ final class AppState: ObservableObject {
     func toggleReminder(id: String) {
         guard let i = reminders.firstIndex(where: { $0.id == id }) else { return }
         reminders[i].completed.toggle()
+        saveReminders()
     }
 
     func addReminder(_ reminder: Reminder) async {
@@ -344,6 +362,15 @@ final class AppState: ObservableObject {
         } catch {
             reminders.append(reminder)
         }
+        saveReminders()
+    }
+
+    func updateReminder(_ reminder: Reminder) async {
+        if let i = reminders.firstIndex(where: { $0.id == reminder.id }) {
+            reminders[i] = reminder
+        }
+        do { _ = try await api.updateReminder(reminder) } catch {}
+        saveReminders()
     }
 
     func deleteReminder(id: String) async {
@@ -353,6 +380,7 @@ final class AppState: ObservableObject {
         } catch {
             reminders.removeAll { $0.id == id }
         }
+        saveReminders()
     }
 
     func addWeightRecord(petId: String, _ record: WeightRecord) async {
@@ -504,7 +532,7 @@ final class AppState: ObservableObject {
 
     func todayReminders() -> [Reminder] {
         let today = Self.dateString(from: Date())
-        return reminders.filter { $0.date == today }
+        return reminders.filter { $0.date <= today }.sorted { $0.date < $1.date }
     }
 
     func upcomingReminders() -> [Reminder] {

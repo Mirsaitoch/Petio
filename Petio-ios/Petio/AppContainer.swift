@@ -16,6 +16,6 @@ final class AppContainer: ObservableObject {
         let auth = AuthManager()
         let client = HTTPAPIClient(authManager: auth)
         self.authManager = auth
-        self.appState = AppState(api: client)
+        self.appState = AppState(api: client, authManager: auth)
     }
 }

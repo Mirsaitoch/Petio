@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
     @State private var selectedTab: ProfileTab = .posts
+    @State private var showAuthPrompt = false
 
     private var myPosts: [Post] {
         app.posts.filter { $0.author == app.user.username }
@@ -32,14 +33,20 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                tabs
-                ScrollView(showsIndicators: false) {
-                    profileContent
+            Group {
+                if authManager.isAuthenticated {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        tabs
+                        ScrollView(showsIndicators: false) {
+                            profileContent
+                        }
+                    }
+                    .background(PetCareTheme.background)
+                } else {
+                    guestView
                 }
             }
-            .background(PetCareTheme.background)
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .pets:
@@ -50,6 +57,12 @@ struct ProfileView: View {
                     EmptyView()
                 }
             }
+            .sheet(isPresented: $showAuthPrompt) {
+                AuthPromptSheet(
+                    isPresented: $showAuthPrompt,
+                    message: "Войдите, чтобы сохранить данные и открыть больше возможностей"
+                )
+            }
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet(user: app.user) { updated in
                     Task { await app.updateProfile(updated) }
@@ -57,6 +70,73 @@ struct ProfileView: View {
                 } onCancel: { showEditProfile = false }
             }
         }
+    }
+
+    private var guestView: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Профиль")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+            .background {
+                PetCareTheme.primary
+                    .clipShape(.rect(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 32,
+                        bottomTrailingRadius: 32,
+                        topTrailingRadius: 0
+                    ))
+                    .ignoresSafeArea()
+            }
+            .padding(.bottom, 16)
+
+            Spacer()
+
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(PetCareTheme.secondary)
+                        .frame(width: 96, height: 96)
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 44))
+                        .foregroundColor(PetCareTheme.primary)
+                }
+
+                VStack(spacing: 8) {
+                    Text("Вы не вошли в аккаунт")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(PetCareTheme.primary)
+                    Text("Войдите, чтобы сохранить данные,\nобщаться в ленте и использовать AI-чат")
+                        .font(.system(size: 14))
+                        .foregroundColor(PetCareTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                Button {
+                    showAuthPrompt = true
+                } label: {
+                    Text("Войти / Зарегистрироваться")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(PetCareTheme.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 40)
+            }
+
+            Spacer()
+            Spacer()
+        }
+        .background(PetCareTheme.background)
     }
 
     private var header: some View {
@@ -68,7 +148,11 @@ struct ProfileView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button {
-                        showEditProfile = true
+                        if authManager.isAuthenticated {
+                            showEditProfile = true
+                        } else {
+                            showAuthPrompt = true
+                        }
                     } label: {
                         Image(systemName: "gearshape")
                             .font(.system(size: 18))
@@ -85,6 +169,10 @@ struct ProfileView: View {
                         photoPath: Binding(
                             get: { app.user.avatar },
                             set: { newValue in
+                                guard authManager.isAuthenticated else {
+                                    showAuthPrompt = true
+                                    return
+                                }
                                 var updated = app.user
                                 updated.avatar = newValue
                                 Task { await app.updateProfile(updated) }
@@ -126,6 +214,7 @@ struct ProfileView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
+            .frame(minHeight: 130, alignment: .top)
             .background {
                 PetCareTheme.primary
                     .clipShape(
@@ -319,15 +408,21 @@ struct ProfileView: View {
                 settingsRow(icon: "lock.shield", color: .green, title: "Конфиденциальность")
                 settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь")
                 Divider().padding(.leading, 60)
-                settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти") {
-                    showLogoutAlert = true
+                if authManager.isAuthenticated {
+                    settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти") {
+                        showLogoutAlert = true
+                    }
+                } else {
+                    settingsRow(icon: "person.crop.circle.badge.plus", color: PetCareTheme.primary, title: "Войти / Зарегистрироваться") {
+                        showAuthPrompt = true
+                    }
                 }
             }
             .alert("Выйти из аккаунта?", isPresented: $showLogoutAlert) {
                 Button("Отмена", role: .cancel) { }
                 Button("Выйти", role: .destructive) { authManager.deleteToken() }
             } message: {
-                Text("Вы будете перенаправлены на экран входа.")
+                Text("Локальные данные сохранятся на устройстве.")
             }
             .petCareCardStyle()
             .padding(.horizontal, 20)

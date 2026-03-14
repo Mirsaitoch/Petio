@@ -13,8 +13,17 @@ import PhotosUI
 struct AvatarPickerButton: View {
     @Binding var photoPath: String?
     let placeholder: String
+    let imageName: String?
     let size: CGFloat
     var isCircle: Bool = false
+
+    init(photoPath: Binding<String?>, placeholder: String = "🐾", imageName: String? = nil, size: CGFloat = 44, isCircle: Bool = false) {
+        self._photoPath = photoPath
+        self.placeholder = placeholder
+        self.imageName = imageName
+        self.size = size
+        self.isCircle = isCircle
+    }
 
     @State private var showOptions = false
     @State private var showGallery = false
@@ -26,7 +35,7 @@ struct AvatarPickerButton: View {
         if isCircle {
             CircleAvatarView(url: photoPath, fallbackLetter: placeholder, size: size)
         } else {
-            AvatarView(url: photoPath, placeholder: placeholder, size: size)
+            AvatarView(url: photoPath, placeholder: placeholder, imageName: imageName, size: size)
         }
     }
 

@@ -19,11 +19,14 @@ func parsePostDate(_ timestamp: String) -> Date? {
 
 struct FeedView: View {
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var authManager: AuthManager
     @State private var selectedClub = "Все"
     @State private var newestFirst = true
     @State private var showNewPost = false
     @State private var expandedComments: Set<String> = []
     @State private var commentText: [String: String] = [:]
+    @State private var showAuthPrompt = false
+    @State private var authPromptMessage = ""
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
@@ -39,25 +42,32 @@ struct FeedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            ChipGroup(
-                haveAdditionalPadding: true,
-                labels: clubs,
-                selection: $selectedClub
-            )
-            ScrollView(showsIndicators: false) {
-                feedContent
-            }
-            .overlay(alignment: .top) {
-                LinearGradient(
-                    colors: [PetCareTheme.background, PetCareTheme.background.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
+            if app.postsLoadFailed && app.posts.isEmpty {
+                errorView
+            } else {
+                ChipGroup(
+                    haveAdditionalPadding: true,
+                    labels: clubs,
+                    selection: $selectedClub
                 )
-                .frame(height: Self.topFadeHeight)
-                .allowsHitTesting(false)
+                ScrollView(showsIndicators: false) {
+                    feedContent
+                }
+                .overlay(alignment: .top) {
+                    LinearGradient(
+                        colors: [PetCareTheme.background, PetCareTheme.background.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Self.topFadeHeight)
+                    .allowsHitTesting(false)
+                }
             }
         }
         .background(PetCareTheme.background)
+        .sheet(isPresented: $showAuthPrompt) {
+            AuthPromptSheet(isPresented: $showAuthPrompt, message: authPromptMessage)
+        }
         .sheet(isPresented: $showNewPost) {
             NewPostSheet(user: app.user) { post, image in
                 Task {
@@ -89,7 +99,12 @@ struct FeedView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    showNewPost = true
+                    if authManager.isAuthenticated {
+                        showNewPost = true
+                    } else {
+                        authPromptMessage = "Чтобы создавать посты, войдите в аккаунт - это бесплатно"
+                        showAuthPrompt = true
+                    }
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 18))
@@ -122,6 +137,40 @@ struct FeedView: View {
 
     private static let topFadeHeight: CGFloat = 10
 
+    private var errorView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 56))
+                .foregroundColor(PetCareTheme.muted.opacity(0.4))
+            VStack(spacing: 8) {
+                Text("Не удалось загрузить ленту")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(PetCareTheme.primary)
+                Text("Проверьте подключение к интернету\nи попробуйте снова")
+                    .font(.system(size: 14))
+                    .foregroundColor(PetCareTheme.muted)
+                    .multilineTextAlignment(.center)
+            }
+            Button {
+                Task { await app.loadPosts() }
+            } label: {
+                Label("Повторить", systemImage: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(PetCareTheme.primary)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+    }
+
     @ViewBuilder
     private var feedContent: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -142,6 +191,11 @@ struct FeedView: View {
                         }
                     },
                     onSendComment: {
+                        guard authManager.isAuthenticated else {
+                            authPromptMessage = "Чтобы комментировать, войдите в аккаунт"
+                            showAuthPrompt = true
+                            return
+                        }
                         let text = (commentText[post.id] ?? "").trimmingCharacters(in: .whitespaces)
                         guard !text.isEmpty else { return }
                         let c = Comment(
@@ -154,7 +208,14 @@ struct FeedView: View {
                         Task { await app.addComment(postId: post.id, c) }
                         commentText[post.id] = ""
                     },
-                    onLike: { Task { await app.togglePostLike(postId: post.id) } }
+                    onLike: {
+                        guard authManager.isAuthenticated else {
+                            authPromptMessage = "Чтобы лайкать посты, войдите в аккаунт"
+                            showAuthPrompt = true
+                            return
+                        }
+                        Task { await app.togglePostLike(postId: post.id) }
+                    }
                 )
                 .padding(.horizontal, 20)
                 .transition(.asymmetric(
@@ -178,7 +239,12 @@ struct FeedView: View {
             }
 
             PetCareDashedButton(title: "Добавить пост", icon: "plus") {
-                showNewPost = true
+                if authManager.isAuthenticated {
+                    showNewPost = true
+                } else {
+                    authPromptMessage = "Чтобы создавать посты, войдите в аккаунт — это бесплатно"
+                    showAuthPrompt = true
+                }
             }
             .padding(.horizontal, 20)
         }

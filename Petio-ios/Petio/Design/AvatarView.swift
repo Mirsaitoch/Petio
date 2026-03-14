@@ -10,11 +10,13 @@ import SwiftUI
 struct AvatarView: View {
     let url: String?
     let placeholder: String
+    let imageName: String?
     let size: CGFloat
 
-    init(url: String?, placeholder: String = "🐾", size: CGFloat = 44) {
+    init(url: String?, placeholder: String = "🐾", imageName: String? = nil, size: CGFloat = 44) {
         self.url = url
         self.placeholder = placeholder
+        self.imageName = imageName
         self.size = size
     }
 
@@ -56,10 +58,19 @@ struct AvatarView: View {
     }
 
     private var placeholderView: some View {
-        Text(placeholder)
-            .font(.system(size: size * 0.5))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(PetCareTheme.secondary)
+        Group {
+            if let imageName {
+                Image(imageName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(size * 0.15)
+            } else {
+                Text(placeholder)
+                    .font(.system(size: size * 0.5))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PetCareTheme.secondary)
     }
 }
 

@@ -2,7 +2,8 @@
 //  ContentView.swift
 //  Petio
 //
-//  Auth gate: shows AuthView when not authenticated, AppTabView when authenticated.
+//  Entry point. Always shows AppTabView — no auth gate.
+//  AuthView is presented as a sheet from AuthPromptSheet or ProfileView.
 //
 
 import SwiftUI
@@ -12,26 +13,20 @@ struct ContentView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        Group {
-            if authManager.isAuthenticated {
-                AppTabView()
-            } else {
-                AuthView()
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
-        .onChange(of: authManager.isAuthenticated) { _, isAuth in
-            if isAuth {
-                Task { await appState.loadAll() }
-            } else {
-                appState.resetUserSession()
-            }
-        }
-        .task {
-            if authManager.isAuthenticated {
+        AppTabView()
+            .task {
                 await appState.loadAll()
             }
-        }
+            .onChange(of: authManager.isAuthenticated) { _, isAuth in
+                if isAuth {
+                    Task {
+                        await appState.loadAll()
+                    }
+                } else {
+                    appState.resetUserSession()
+                    Task { await appState.loadAll() }
+                }
+            }
     }
 }
 

@@ -8,11 +8,13 @@
 import SwiftUI
 
 struct ChatView: View {
-    let onDismiss: () -> Void
+    var onDismiss: (() -> Void)? = nil
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var authManager: AuthManager
     @State private var inputText = ""
     @State private var isTyping = false
     @FocusState private var inputFocused: Bool
+    @State private var showAuthPrompt = false
 
     private let quickQuestions = [
         "Как часто кормить щенка?",
@@ -22,22 +24,50 @@ struct ChatView: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                messagesList
-                inputBar
-            }
-            .background(PetCareTheme.background)
-            .navigationTitle("AI-помощник")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { onDismiss() } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                }
-            }
+        VStack(spacing: 0) {
+            chatHeader
+            messagesList
+            inputBar
         }
+        .background(PetCareTheme.background)
+        .sheet(isPresented: $showAuthPrompt) {
+            AuthPromptSheet(
+                isPresented: $showAuthPrompt,
+                message: "Чтобы общаться с AI-помощником, войдите в аккаунт"
+            )
+        }
+    }
+
+    private var chatHeader: some View {
+        HStack(spacing: 12) {
+            if let onDismiss {
+                Button { onDismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            Text("AI-помощник")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .background {
+            PetCareTheme.primary
+                .clipShape(
+                    .rect(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 32,
+                        bottomTrailingRadius: 32,
+                        topTrailingRadius: 0
+                    )
+                )
+                .ignoresSafeArea()
+        }
+        .padding(.bottom, 10)
     }
 
     private var messagesList: some View {
@@ -150,6 +180,10 @@ struct ChatView: View {
     private func sendMessage(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
+        guard authManager.isAuthenticated else {
+            showAuthPrompt = true
+            return
+        }
         inputText = ""
         isTyping = true
         Task {

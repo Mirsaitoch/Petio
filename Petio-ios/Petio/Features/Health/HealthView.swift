@@ -23,6 +23,8 @@ struct HealthView: View {
     @State private var showAddDiary = false
     @State private var showAddWeight = false
     @State private var showAddPet = false
+    @State private var editingDiaryEntry: HealthDiaryEntry? = nil
+    @State private var editingReminder: Reminder? = nil
     
     private var selectedPet: Pet? { app.selectedPet }
     private static let filterToRaw: [String: String] = [
@@ -84,6 +86,18 @@ struct HealthView: View {
                 showAddWeight = false
             } onCancel: { showAddWeight = false }
         }
+        .sheet(item: $editingDiaryEntry) { entry in
+            AddDiarySheet(petId: entry.petId, existingEntry: entry) { updated in
+                Task { await app.updateDiaryEntry(updated) }
+                editingDiaryEntry = nil
+            } onCancel: { editingDiaryEntry = nil }
+        }
+        .sheet(item: $editingReminder) { reminder in
+            AddReminderSheet(selectedPetId: reminder.petId, pets: app.pets, existingReminder: reminder) { updated in
+                Task { await app.updateReminder(updated) }
+                editingReminder = nil
+            } onCancel: { editingReminder = nil }
+        }
     }
     
     private var header: some View {
@@ -101,7 +115,7 @@ struct HealthView: View {
                         HStack(spacing: 8) {
                             AvatarView(
                                 url: selectedPet?.photo,
-                                placeholder: "🐾",
+                                imageName: selectedPet.map { speciesImageName($0.species) },
                                 size: 28
                             )
                             Text(selectedPet?.name ?? "Выберите питомца")
@@ -132,7 +146,7 @@ struct HealthView: View {
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                AvatarView(url: p.photo, placeholder: "🐾", size: 24)
+                                AvatarView(url: p.photo, imageName: speciesImageName(p.species), size: 24)
                                 Text(p.name)
                                     .font(.system(size: 14))
                                     .foregroundColor(.white)
@@ -275,15 +289,13 @@ struct HealthView: View {
             )
             
             ForEach(Array(petReminders.enumerated()), id: \.element.id) { index, r in
-                PetCareReminderRow(
-                    title: r.title,
-                    subtitle: "\(r.date) · \(r.time)",
-                    icon: r.type.sfSymbol,
-                    iconColor: r.type.color,
-                    completed: r.completed,
-                    onToggle: { app.toggleReminder(id: r.id) },
-                    onDelete: { Task { await app.deleteReminder(id: r.id) } }
-                )
+                SwipeReminderCard(reminder: r) {
+                    app.toggleReminder(id: r.id)
+                } onEdit: {
+                    editingReminder = r
+                } onDelete: {
+                    Task { await app.deleteReminder(id: r.id) }
+                }
                 .padding(.horizontal, 20)
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.96)),
@@ -347,34 +359,11 @@ struct HealthView: View {
     private var diaryContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(petDiary.enumerated()), id: \.element.id) { index, entry in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(entry.date)
-                        .font(.system(size: 11))
-                        .foregroundColor(PetCareTheme.muted)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(PetCareTheme.secondary)
-                        .clipShape(Capsule())
-                    Text(entry.note)
-                        .font(.system(size: 14))
-                        .foregroundColor(PetCareTheme.primary)
-                    if !entry.tags.isEmpty {
-                        FlowLayoutSimple(spacing: 6) {
-                            ForEach(entry.tags) { tag in
-                                Text(tag.name)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color(hex: tag.colorHex))
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
+                DiaryEntryCard(entry: entry) {
+                    editingDiaryEntry = entry
+                } onDelete: {
+                    Task { await app.deleteDiaryEntry(id: entry.id) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .petCareCardStyle()
                 .padding(.horizontal, 20)
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.97)),
@@ -386,6 +375,228 @@ struct HealthView: View {
                 showAddDiary = true
             }
             .padding(.horizontal, 20)
+        }
+    }
+}
+
+// MARK: - Reminder card with swipe left=delete / right=edit
+
+private struct SwipeReminderCard: View {
+    let reminder: Reminder
+    let onToggle: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var revealed: Revealed = .none
+
+    private enum Revealed { case none, edit, delete }
+    private let actionWidth: CGFloat = 72
+
+    var body: some View {
+        ZStack {
+            // Edit button (left, revealed by swipe right)
+            HStack(spacing: 0) {
+                Button {
+                    snap(to: .none)
+                    onEdit()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Изменить")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(PetCareTheme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+
+            // Delete button (right, revealed by swipe left)
+            HStack(spacing: 0) {
+                Spacer()
+                Button {
+                    snap(to: .none)
+                    onDelete()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Удалить")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.red)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Row content
+            PetCareReminderRow(
+                title: reminder.title,
+                subtitle: "\(reminder.date) · \(reminder.time)",
+                icon: reminder.type.sfSymbol,
+                iconColor: reminder.type.color,
+                completed: reminder.completed,
+                onToggle: onToggle
+            )
+            .offset(x: offset)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        let base: CGFloat
+                        switch revealed {
+                        case .none:   base = 0
+                        case .edit:   base = actionWidth
+                        case .delete: base = -actionWidth
+                        }
+                        let raw = base + value.translation.width
+                        offset = min(max(raw, -actionWidth), actionWidth)
+                    }
+                    .onEnded { value in
+                        let total = value.translation.width
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            if total > actionWidth / 2 {
+                                offset = actionWidth; revealed = .edit
+                            } else if total < -actionWidth / 2 {
+                                offset = -actionWidth; revealed = .delete
+                            } else {
+                                offset = 0; revealed = .none
+                            }
+                        }
+                    }
+            )
+            .onTapGesture {
+                if revealed != .none { snap(to: .none) }
+            }
+        }
+    }
+
+    private func snap(to state: Revealed) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            revealed = state
+            switch state {
+            case .none:   offset = 0
+            case .edit:   offset = actionWidth
+            case .delete: offset = -actionWidth
+            }
+        }
+    }
+}
+
+// MARK: - Diary entry card with swipe-to-delete
+
+private struct DiaryEntryCard: View {
+    let entry: HealthDiaryEntry
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var revealed = false
+
+    private let deleteWidth: CGFloat = 72
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // Delete button behind the card
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    offset = 0
+                    revealed = false
+                }
+                onDelete()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .medium))
+                    Text("Удалить")
+                        .font(.system(size: 11))
+                }
+                .foregroundColor(.white)
+                .frame(width: deleteWidth)
+                .frame(maxHeight: .infinity)
+                .background(Color.red)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+
+            // Card content
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(entry.date)
+                        .font(.system(size: 11))
+                        .foregroundColor(PetCareTheme.muted)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(PetCareTheme.secondary)
+                        .clipShape(Capsule())
+                    Spacer()
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13))
+                            .foregroundColor(PetCareTheme.muted)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text(entry.note)
+                    .font(.system(size: 14))
+                    .foregroundColor(PetCareTheme.primary)
+                if !entry.tags.isEmpty {
+                    FlowLayoutSimple(spacing: 6) {
+                        ForEach(entry.tags) { tag in
+                            Text(tag.name)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(hex: tag.colorHex))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .petCareCardStyle()
+            .offset(x: offset)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        let tx = value.translation.width
+                        if tx < 0 {
+                            offset = max(tx + (revealed ? -deleteWidth : 0), -deleteWidth)
+                        } else if revealed {
+                            offset = min(tx - deleteWidth, 0)
+                        }
+                    }
+                    .onEnded { value in
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            if value.translation.width < -deleteWidth / 2 {
+                                offset = -deleteWidth
+                                revealed = true
+                            } else {
+                                offset = 0
+                                revealed = false
+                            }
+                        }
+                    }
+            )
+            .onTapGesture {
+                if revealed {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        offset = 0
+                        revealed = false
+                    }
+                }
+            }
         }
     }
 }

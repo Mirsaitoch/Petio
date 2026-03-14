@@ -58,7 +58,6 @@ struct PetCareReminderRow: View {
     let iconColor: Color
     let completed: Bool
     let onToggle: (() -> Void)?
-    let onDelete: (() -> Void)?
 
     init(
         title: String,
@@ -66,8 +65,7 @@ struct PetCareReminderRow: View {
         icon: String,
         iconColor: Color,
         completed: Bool,
-        onToggle: (() -> Void)? = nil,
-        onDelete: (() -> Void)? = nil
+        onToggle: (() -> Void)? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -75,12 +73,11 @@ struct PetCareReminderRow: View {
         self.iconColor = iconColor
         self.completed = completed
         self.onToggle = onToggle
-        self.onDelete = onDelete
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            if let onToggle = onToggle {
+            if let onToggle {
                 Button(action: onToggle) {
                     ZStack {
                         Circle()
@@ -114,14 +111,6 @@ struct PetCareReminderRow: View {
                 .frame(width: 32, height: 32)
                 .background(iconColor.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-            if onDelete != nil {
-                Button(action: { onDelete?() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12))
-                        .foregroundColor(PetCareTheme.muted)
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

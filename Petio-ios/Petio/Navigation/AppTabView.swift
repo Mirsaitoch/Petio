@@ -11,6 +11,7 @@ enum AppTab: Int, CaseIterable {
     case home = 0
     case health
     case feed
+    case chat
     case profile
 
     var title: String {
@@ -18,6 +19,7 @@ enum AppTab: Int, CaseIterable {
         case .home: return "Главная"
         case .health: return "Здоровье"
         case .feed: return "Лента"
+        case .chat: return "AI-чат"
         case .profile: return "Профиль"
         }
     }
@@ -27,19 +29,18 @@ enum AppTab: Int, CaseIterable {
         case .home: return "house.fill"
         case .health: return "heart.fill"
         case .feed: return "newspaper.fill"
+        case .chat: return "apple.intelligence"
         case .profile: return "person.fill"
         }
     }
 }
 
 struct AppTabView: View {
-    @State private var selectedTab: AppTab = .home
-    @State private var showChat = false
     @EnvironmentObject private var app: AppState
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(selectedTab: $selectedTab)
+        TabView(selection: $app.selectedTab) {
+            HomeView(selectedTab: $app.selectedTab)
                 .tabItem {
                     Label(AppTab.home.title, systemImage: AppTab.home.icon)
                 }
@@ -51,6 +52,12 @@ struct AppTabView: View {
                 }
                 .tag(AppTab.health)
 
+            ChatView()
+                .tabItem {
+                    Label(AppTab.chat.title, systemImage: AppTab.chat.icon)
+                }
+                .tag(AppTab.chat)
+            
             FeedView()
                 .tabItem {
                     Label(AppTab.feed.title, systemImage: AppTab.feed.icon)
@@ -64,37 +71,5 @@ struct AppTabView: View {
                 .tag(AppTab.profile)
         }
         .tint(PetCareTheme.primary)
-        .overlay(alignment: .bottomTrailing) {
-            if !showChat {
-                chatFloatingButton
-            }
-        }
-        .fullScreenCover(isPresented: $showChat) {
-            ChatView(onDismiss: { showChat = false })
-        }
-    }
-
-    private var chatFloatingButton: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                Button {
-                    showChat = true
-                } label: {
-                    Image(systemName: "message.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.white)
-                        .frame(width: 56, height: 56)
-                        .background(PetCareTheme.primary)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, 16)
-                .padding(.bottom, 78)
-            }
-        }
-        .allowsHitTesting(true)
     }
 }

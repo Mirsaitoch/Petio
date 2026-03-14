@@ -43,10 +43,16 @@ struct Reminder: Identifiable, Equatable, Codable {
     let petId: String
     var petName: String
     var type: ReminderType
+    var customTypeName: String?
     var title: String
     var date: String
     var time: String
     var completed: Bool
+
+    var typeDisplayName: String {
+        if type == .other, let name = customTypeName, !name.isEmpty { return name }
+        return type.label
+    }
 }
 
 enum ReminderType: String, Codable, CaseIterable {
@@ -54,6 +60,7 @@ enum ReminderType: String, Codable, CaseIterable {
     case vaccination
     case deworming
     case grooming
+    case other
 
     var label: String {
         switch self {
@@ -61,6 +68,7 @@ enum ReminderType: String, Codable, CaseIterable {
         case .vaccination: return "Прививка"
         case .deworming: return "Обработка"
         case .grooming: return "Груминг"
+        case .other: return "Другой"
         }
     }
 }

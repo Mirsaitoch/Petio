@@ -6,20 +6,23 @@
 import SwiftUI
 
 struct AddDiarySheet: View {
-    let petId: String
+    let existingEntry: HealthDiaryEntry?
+    let pets: [Pet]
     let onSave: (HealthDiaryEntry) -> Void
     let onCancel: () -> Void
 
     @EnvironmentObject private var app: AppState
 
-    @State private var note = ""
-    @State private var date = Date()
-    @State private var selectedTagIds: Set<String> = []
+    @State private var selectedPetId: String
+    @State private var note: String
+    @State private var date: Date
+    @State private var selectedTagIds: Set<String>
     @State private var showNewTagForm = false
     @State private var newTagName = ""
     @State private var newTagColor = Color(hex: "#2196F3")
+    @FocusState private var noteFocused: Bool
 
-    private static let isoFormatter: DateFormatter = {
+    static let isoFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.locale = Locale(identifier: "ru_RU")
@@ -27,58 +30,184 @@ struct AddDiarySheet: View {
         return f
     }()
 
+    init(petId: String, pets: [Pet] = [], existingEntry: HealthDiaryEntry? = nil,
+         onSave: @escaping (HealthDiaryEntry) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.pets = pets
+        self.existingEntry = existingEntry
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _selectedPetId = State(initialValue: existingEntry?.petId ?? petId)
+        _note = State(initialValue: existingEntry?.note ?? "")
+        _selectedTagIds = State(initialValue: Set(existingEntry?.tags.map(\.id) ?? []))
+        let parsedDate = existingEntry.flatMap { AddDiarySheet.isoFormatter.date(from: $0.date) } ?? Date()
+        _date = State(initialValue: parsedDate)
+    }
+
+    private var isEditing: Bool { existingEntry != nil }
+    private var canSave: Bool { !note.trimmingCharacters(in: .whitespaces).isEmpty && !selectedPetId.isEmpty }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Дата") {
-                    DatePicker("Дата", selection: $date, in: ...Date(), displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                }
+        VStack(spacing: 0) {
+            // Drag handle
+            Capsule()
+                .fill(Color(.systemGray4))
+                .frame(width: 36, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
 
-                Section("Заметка") {
-                    TextEditor(text: $note)
-                        .frame(minHeight: 100)
+            // Header
+            HStack {
+                Text(isEditing ? "Редактировать запись" : "Новая запись")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(PetCareTheme.primary)
+                Spacer()
+                Button {
+                    let selectedTags = app.allDiaryTags.filter { selectedTagIds.contains($0.id) }
+                    let e = HealthDiaryEntry(
+                        id: existingEntry?.id ?? UUID().uuidString,
+                        petId: selectedPetId,
+                        date: AddDiarySheet.isoFormatter.string(from: date),
+                        note: note,
+                        tags: selectedTags
+                    )
+                    onSave(e)
+                } label: {
+                    Text("Сохранить")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(canSave ? PetCareTheme.primary : PetCareTheme.muted)
                 }
-
-                Section("Теги") {
-                    tagGrid
-                    newTagToggle
-                }
+                .disabled(!canSave)
             }
-            .navigationTitle("Новая запись")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") {
-                        let selectedTags = app.allDiaryTags.filter { selectedTagIds.contains($0.id) }
-                        let e = HealthDiaryEntry(
-                            id: UUID().uuidString,
-                            petId: petId,
-                            date: AddDiarySheet.isoFormatter.string(from: date),
-                            note: note,
-                            tags: selectedTags
-                        )
-                        onSave(e)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    if pets.count > 1 && !isEditing { petPickerSection }
+                    noteSection
+                    dateSection
+                    tagsSection
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
+            }
+        }
+        .background(PetCareTheme.background)
+        .presentationDetents([.medium, .large])
+        .presentationCornerRadius(24)
+        .presentationDragIndicator(.hidden)
+        .ignoresSafeArea(.keyboard)
+    }
+
+    // MARK: - Pet picker
+
+    private var petPickerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("Питомец")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(pets) { pet in
+                        let selected = selectedPetId == pet.id
+                        Button {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                selectedPetId = pet.id
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                AvatarView(url: pet.photo, imageName: speciesImageName(pet.species), size: 24)
+                                Text(pet.name)
+                                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                                    .foregroundColor(selected ? PetCareTheme.primary : PetCareTheme.muted)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(selected ? PetCareTheme.primary.opacity(0.1) : PetCareTheme.cardBackground)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .disabled(note.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
     }
 
-    // MARK: - Tag grid
+    // MARK: - Note
 
-    private var tagGrid: some View {
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("Заметка")
+            ZStack(alignment: .topLeading) {
+                if note.isEmpty {
+                    Text("Как дела у питомца?")
+                        .font(.system(size: 14))
+                        .foregroundColor(PetCareTheme.muted.opacity(0.6))
+                        .padding(.top, 12)
+                        .padding(.leading, 14)
+                }
+                TextEditor(text: $note)
+                    .focused($noteFocused)
+                    .font(.system(size: 14))
+                    .foregroundColor(PetCareTheme.primary)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 90)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+            .background(PetCareTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(
+                noteFocused ? PetCareTheme.primary.opacity(0.5) : PetCareTheme.border,
+                lineWidth: noteFocused ? 1.5 : 1
+            ))
+            .animation(.easeInOut(duration: 0.15), value: noteFocused)
+        }
+    }
+
+    // MARK: - Date
+
+    private var dateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("Дата")
+            HStack(spacing: 10) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hex: "#2196F3"))
+                    .frame(width: 28, height: 28)
+                    .background(Color(hex: "#2196F3").opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PetCareTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.border, lineWidth: 1))
+        }
+    }
+
+    // MARK: - Tags
+
+    private var tagsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("Теги")
+            if !app.allDiaryTags.isEmpty {
+                tagChips
+            }
+            newTagToggle
+        }
+    }
+
+    private var tagChips: some View {
         FlowLayoutSimple(spacing: 8) {
             ForEach(app.allDiaryTags) { tag in
                 let isSelected = selectedTagIds.contains(tag.id)
                 Button {
-                    if isSelected {
-                        selectedTagIds.remove(tag.id)
-                    } else {
-                        selectedTagIds.insert(tag.id)
-                    }
+                    if isSelected { selectedTagIds.remove(tag.id) }
+                    else { selectedTagIds.insert(tag.id) }
                 } label: {
                     HStack(spacing: 4) {
                         if isSelected {
@@ -91,71 +220,79 @@ struct AddDiarySheet: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .foregroundColor(isSelected ? .white : Color(hex: tag.colorHex))
-                    .background(
-                        isSelected
-                            ? Color(hex: tag.colorHex)
-                            : Color(hex: tag.colorHex).opacity(0.12)
-                    )
+                    .background(isSelected ? Color(hex: tag.colorHex) : Color(hex: tag.colorHex).opacity(0.12))
                     .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(Color(hex: tag.colorHex), lineWidth: isSelected ? 0 : 1)
-                    )
+                    .overlay(Capsule().stroke(Color(hex: tag.colorHex), lineWidth: isSelected ? 0 : 1))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
-
-    // MARK: - New tag form
 
     private var newTagToggle: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation { showNewTagForm.toggle() }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { showNewTagForm.toggle() }
             } label: {
-                Label(showNewTagForm ? "Скрыть" : "+ Свой тег", systemImage: showNewTagForm ? "chevron.up" : "tag")
-                    .font(.system(size: 13))
-                    .foregroundColor(PetCareTheme.primary)
+                HStack(spacing: 6) {
+                    Image(systemName: showNewTagForm ? "minus.circle" : "plus.circle")
+                        .font(.system(size: 14))
+                    Text(showNewTagForm ? "Скрыть" : "Свой тег")
+                        .font(.system(size: 13))
+                }
+                .foregroundColor(PetCareTheme.primary)
             }
             .buttonStyle(.plain)
 
             if showNewTagForm {
-                VStack(spacing: 8) {
+                HStack(spacing: 10) {
                     TextField("Название тега", text: $newTagName)
                         .font(.system(size: 14))
-                    HStack {
-                        Text("Цвет")
-                            .font(.system(size: 14))
-                            .foregroundColor(PetCareTheme.muted)
-                        Spacer()
-                        ColorPicker("", selection: $newTagColor, supportsOpacity: false)
-                            .labelsHidden()
-                    }
-                    Button("Создать тег") {
+                        .frame(maxWidth: .infinity)
+                    ColorPicker("", selection: $newTagColor, supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 28, height: 28)
+                    Button {
                         let trimmed = newTagName.trimmingCharacters(in: .whitespaces)
                         guard !trimmed.isEmpty else { return }
-                        let tag = DiaryTag(
-                            id: UUID().uuidString,
-                            name: trimmed,
-                            colorHex: newTagColor.hexString,
-                            isDefault: false
-                        )
+                        let tag = DiaryTag(id: UUID().uuidString, name: trimmed,
+                                          colorHex: newTagColor.hexString, isDefault: false)
                         app.addCustomTag(tag)
                         selectedTagIds.insert(tag.id)
                         newTagName = ""
                         newTagColor = Color(hex: "#2196F3")
                         withAnimation { showNewTagForm = false }
+                    } label: {
+                        Text("Создать")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                newTagName.trimmingCharacters(in: .whitespaces).isEmpty
+                                    ? PetCareTheme.muted
+                                    : PetCareTheme.primary
+                            )
+                            .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
                     .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .buttonStyle(.borderedProminent)
-                    .tint(PetCareTheme.primary)
-                    .frame(maxWidth: .infinity)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(PetCareTheme.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.primary.opacity(0.3), lineWidth: 1.5))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(PetCareTheme.muted)
     }
 }
 

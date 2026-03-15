@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"petio/backend/internal/metrics"
 	"petio/backend/internal/repository/postgres"
 	"time"
 
@@ -115,6 +116,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	metrics.UserRegistrationsTotal.Inc()
+
 	token, err := h.issueToken(u.ID)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"petio/backend/clients/yandexai"
 	"time"
 
 	"petio/backend/clients/kserve"
@@ -70,6 +71,18 @@ func New(cfg *config.Config) (*App, error) {
 	}
 	thresholds := moderation.DefaultThresholds()
 
+	var aiClient *yandexai.Client
+	if cfg.YandexAI.APIKey != "" && cfg.YandexAI.FolderID != "" {
+		aiClient = yandexai.New(yandexai.Config{
+			APIKey:   cfg.YandexAI.APIKey,
+			FolderID: cfg.YandexAI.FolderID,
+			BaseURL:  cfg.YandexAI.BaseURL,
+		})
+		log.Println("yandex ai: enabled")
+	} else {
+		log.Println("yandex ai: disabled (using fallback responses)")
+	}
+
 	petRepo := postgres.NewPetRepository(db)
 	reminderRepo := postgres.NewReminderRepository(db)
 	weightRepo := postgres.NewWeightRepository(db)
@@ -78,6 +91,7 @@ func New(cfg *config.Config) (*App, error) {
 	postRepo := postgres.NewPostRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
+	chatRepo := postgres.NewChatRepository(db)
 
 	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, cfg.JWT.Secret, cfg.JWT.Expiration)
 	petHandler := handlers.NewPetHandler(petRepo)
@@ -86,7 +100,7 @@ func New(cfg *config.Config) (*App, error) {
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
 	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient, thresholds)
-	chatService := service.NewChatService(kc)
+	chatService := service.NewChatService(aiClient, chatRepo)
 	chatHandler := handlers.NewChatHandler(chatService)
 	profileHandler := handlers.NewProfileHandler(userRepo, modClient, thresholds)
 	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)

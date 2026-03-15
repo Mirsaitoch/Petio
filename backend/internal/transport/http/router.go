@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	"petio/backend/internal/transport/http/handlers"
@@ -27,9 +28,18 @@ func NewRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RealIP)
-	r.Use(chimiddleware.Logger)
+	r.Use(chimiddleware.RequestID)
+	r.Use(middleware.RequestLog)
+	r.Use(middleware.PrometheusMetrics)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(corsMiddleware())
+
+	r.Handle("/metrics", promhttp.Handler())
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
@@ -85,7 +95,18 @@ func NewRouter(
 				r.Post("/{postId}/comments", post.AddComment)
 			})
 
-			r.Post("/chat/send", chat.Send)
+			r.Route("/chats", func(r chi.Router) {
+				r.Get("/", chat.ListChats)
+				r.Post("/", chat.CreateChat)
+				r.Get("/stats", chat.GetStats)
+
+				r.Get("/{id}", chat.GetChat)
+				r.Patch("/{id}", chat.UpdateChatTitle)
+				r.Delete("/{id}", chat.DeleteChat)
+
+				r.Get("/{id}/messages", chat.GetMessages)
+				r.Post("/{id}/messages", chat.SendMessage)
+			})
 
 			r.Post("/upload/pet-photo", upload.UploadPetPhoto)
 			r.Post("/upload/post-image", upload.UploadPostImage)
@@ -93,6 +114,7 @@ func NewRouter(
 
 			r.Get("/profile", profile.Get)
 			r.Put("/profile", profile.Update)
+
 		})
 	})
 

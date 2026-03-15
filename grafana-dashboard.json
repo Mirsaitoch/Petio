@@ -1,0 +1,89 @@
+{
+  "dashboard": {
+    "title": "Petio Backend Metrics",
+    "panels": [
+      {
+        "title": "HTTP Request Rate",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}} {{status}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "AI Token Usage by Model",
+        "targets": [
+          {
+            "expr": "rate(ai_input_tokens_total[5m])",
+            "legendFormat": "{{model}} input"
+          },
+          {
+            "expr": "rate(ai_output_tokens_total[5m])",
+            "legendFormat": "{{model}} output"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "AI Request Duration (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ai_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Active Chats",
+        "targets": [
+          {
+            "expr": "active_chats_total"
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "title": "Chat Messages Rate",
+        "targets": [
+          {
+            "expr": "rate(chat_messages_total[5m])",
+            "legendFormat": "{{role}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Moderation Block Rate",
+        "targets": [
+          {
+            "expr": "rate(moderation_blocked_total[5m])",
+            "legendFormat": "{{type}} - {{reason}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "S3 Upload Success Rate",
+        "targets": [
+          {
+            "expr": "rate(s3_uploads_total{status=\"success\"}[5m]) / rate(s3_uploads_total[5m])",
+            "legendFormat": "{{type}}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Top Endpoints by Request Count",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (endpoint) (rate(http_requests_total[5m])))"
+          }
+        ],
+        "type": "table"
+      }
+    ]
+  }
+}

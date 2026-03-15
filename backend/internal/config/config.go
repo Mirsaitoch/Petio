@@ -16,7 +16,8 @@ type Config struct {
 	KServe     KServeConfig
 	S3         S3Config
 	JWT        JWTConfig
-	Moderation ModerationConfig // <-- NEW
+	Moderation ModerationConfig
+	YandexAI   YandexAIConfig
 }
 
 type DBConfig struct {
@@ -38,6 +39,12 @@ type S3Config struct {
 
 type ModerationConfig struct {
 	BaseURL string
+}
+
+type YandexAIConfig struct {
+	APIKey   string
+	FolderID string
+	BaseURL  string
 }
 
 // S3Configured возвращает true, если заданы бакет и ключи доступа (S3 обязателен для загрузки).
@@ -91,6 +98,11 @@ func Load() *Config {
 		},
 		Moderation: ModerationConfig{
 			BaseURL: getEnv("MODERATION_URL", ""),
+		},
+		YandexAI: YandexAIConfig{
+			APIKey:   getEnv("YANDEX_AI_API_KEY", ""),
+			FolderID: getEnv("YANDEX_AI_FOLDER_ID", ""),
+			BaseURL:  getEnv("YANDEX_AI_BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
 		},
 	}
 }

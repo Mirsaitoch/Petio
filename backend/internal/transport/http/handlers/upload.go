@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"path"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/metrics"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -84,6 +86,14 @@ func (h *UploadHandler) UploadPostImage(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, prefix string) {
+	start := time.Now()
+
+	if h.s3 == nil {
+		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "disabled").Inc()
+		return
+	}
+
 	if h.s3 == nil {
 		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
 		return
@@ -115,8 +125,11 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	body, err := io.ReadAll(io.LimitReader(file, maxUploadSize))
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "error").Inc()
 		return
 	}
+
+	fileSize := len(body)
 	if len(body) == 0 {
 		jsonError(w, http.StatusBadRequest, "empty file")
 		return
@@ -153,10 +166,17 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 
 	key := fmt.Sprintf("%s/%s/%s%s", prefix, userID, uuid.New().String(), ext)
 	urlStr, err := h.s3.Upload(r.Context(), key, body, ct)
+	duration := time.Since(start).Seconds()
+
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "error").Inc()
 		return
 	}
+	metrics.S3UploadsTotal.WithLabelValues(prefix, "success").Inc()
+	metrics.S3UploadSize.WithLabelValues(prefix).Observe(float64(fileSize))
+	metrics.S3UploadDuration.WithLabelValues(prefix).Observe(duration)
+
 	jsonResponse(w, http.StatusCreated, map[string]string{"url": urlStr})
 }
 

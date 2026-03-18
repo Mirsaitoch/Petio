@@ -218,20 +218,44 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func fetchPosts(club: String?) async throws -> [Post] {
         var qi: [URLQueryItem] = []
         if let club = club, club != "Все" { qi = [URLQueryItem(name: "club", value: club)] }
-        return try await perform(try makeRequest(path: "/posts", queryItems: qi))
+        print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', queryItems=\(qi.map { "\($0.name)=\($0.value ?? "")" })")
+        do {
+            let posts: [Post] = try await perform(try makeRequest(path: "/posts", queryItems: qi))
+            print("[POSTS] fetchPosts успех: получено \(posts.count) постов")
+            for (i, post) in posts.prefix(3).enumerated() {
+                print("[POSTS]   [\(i)] id=\(post.id), author='\(post.author)', content='\(post.content.prefix(50))', image=\(post.image ?? "nil"), likes=\(post.likes)")
+            }
+            if posts.count > 3 { print("[POSTS]   ... и ещё \(posts.count - 3) постов") }
+            return posts
+        } catch {
+            print("[POSTS] fetchPosts ошибка: \(error)")
+            throw error
+        }
     }
 
     func addPost(_ post: Post) async throws -> Post {
-        try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
+        print("[POSTS] addPost запрос: author='\(post.author)', content='\(post.content.prefix(50))', club='\(post.club)', image=\(post.image ?? "nil")")
+        do {
+            let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
+            print("[POSTS] addPost успех: id=\(result.id), image=\(result.image ?? "nil")")
+            return result
+        } catch {
+            print("[POSTS] addPost ошибка: \(error)")
+            throw error
+        }
     }
 
     func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post {
+        print("[POSTS] addPostWithImage запрос: author='\(post.author)', content='\(post.content.prefix(50))', imageSize=\(imageData.count) bytes")
         // Step 1: upload image, get URL from /upload/post-image
         let imageURL = try await uploadPostImage(imageData: imageData)
+        print("[POSTS] addPostWithImage: imageURL='\(imageURL)'")
         // Step 2: create post via JSON with image URL
         var postWithImage = post
         postWithImage.image = imageURL
-        return try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(postWithImage)))
+        let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(postWithImage)))
+        print("[POSTS] addPostWithImage успех: id=\(result.id), image=\(result.image ?? "nil")")
+        return result
     }
 
     private func uploadPostImage(imageData: Data) async throws -> String {

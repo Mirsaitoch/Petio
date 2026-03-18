@@ -27,7 +27,7 @@ struct Vaccination: Identifiable, Equatable, Codable {
     let id: String
     var name: String
     var date: String
-    var nextDate: String
+    var expirationDate: String?
 }
 
 struct Treatment: Identifiable, Equatable, Codable {

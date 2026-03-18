@@ -23,24 +23,33 @@ struct RegisterView: View {
         !email.isEmpty && password.count >= 6 && passwordsMatch && isUsernameValid && !viewModel.isLoading
     }
 
-    private var usernamePlaceholder: String {
-        AuthViewModel.generateZooUsername()
-    }
+    @State private var usernamePlaceholder = AuthViewModel.generateZooUsername()
 
     var body: some View {
         ScrollView {
             VStack(spacing: 32) {
                 // Header
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(PetCareTheme.primary)
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+
                 VStack(spacing: 8) {
                     Text("Создать аккаунт")
                         .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(PetCareTheme.primary)
+                        .foregroundStyle(PetCareTheme.primary)
                     Text("Присоединитесь к сообществу владельцев питомцев")
                         .font(.system(size: 15))
-                        .foregroundColor(PetCareTheme.muted)
+                        .foregroundStyle(PetCareTheme.muted)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.top, 40)
 
                 // Form
                 VStack(spacing: 16) {
@@ -48,7 +57,7 @@ struct RegisterView: View {
                         Text("Email")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(PetCareTheme.muted)
-                        TextField("you@example.com", text: $email)
+                        TextField("Ваша почта", text: $email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
@@ -67,7 +76,7 @@ struct RegisterView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(PetCareTheme.muted.opacity(0.6))
                         }
-                        HStack(spacing: 0) {
+                        HStack(spacing: 2) {
                             Text("@")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundColor(PetCareTheme.muted)
@@ -75,7 +84,8 @@ struct RegisterView: View {
                             TextField(usernamePlaceholder, text: $username)
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
-                                .padding(14)
+                                .padding(.vertical, 14)
+                                .padding(.trailing, 14)
                         }
                         .background(PetCareTheme.inputBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -165,6 +175,7 @@ struct RegisterView: View {
         }
         .background(PetCareTheme.background.ignoresSafeArea())
         .navigationBarHidden(true)
+        .onAppear { viewModel.errorMessage = nil }
     }
 }
 

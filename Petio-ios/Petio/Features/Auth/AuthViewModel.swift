@@ -38,6 +38,7 @@ final class AuthViewModel: ObservableObject {
         let finalUsername = username.trimmingCharacters(in: .whitespaces).isEmpty
             ? Self.generateZooUsername()
             : username
+        print("[AUTH] Регистрация: email='\(email)', username введённый='\(username)', finalUsername='\(finalUsername)'")
         do {
             let token = try await authRequest(
                 path: "/auth/register",
@@ -45,8 +46,10 @@ final class AuthViewModel: ObservableObject {
             )
             UserDefaults.standard.set(email, forKey: "petio_session_email")
             UserDefaults.standard.set(finalUsername, forKey: "petio_session_username")
+            print("[AUTH] Регистрация успешна. Сохранён petio_session_username='\(finalUsername)'")
             authManager.saveToken(token)
         } catch {
+            print("[AUTH] Ошибка регистрации: \(error)")
             errorMessage = describe(error)
         }
         isLoading = false

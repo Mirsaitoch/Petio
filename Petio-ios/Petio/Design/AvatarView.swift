@@ -22,18 +22,15 @@ struct AvatarView: View {
 
     var body: some View {
         Group {
-            if let urlString = url {
-                if urlString.hasPrefix("ava_") {
-                    Image(urlString)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else if urlString.hasPrefix("file://"),
-                          let path = URL(string: urlString)?.path,
-                          let uiImage = UIImage(contentsOfFile: path) {
+            if let urlString = url, !urlString.isEmpty {
+                if urlString.hasPrefix("file://"),
+                   let path = URL(string: urlString)?.path,
+                   let uiImage = UIImage(contentsOfFile: path) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                } else if let remoteURL = URL(string: urlString) {
+                } else if let remoteURL = URL(string: urlString),
+                          urlString.hasPrefix("http") {
                     AsyncImage(url: remoteURL) { phase in
                         switch phase {
                         case .success(let image):
@@ -65,8 +62,11 @@ struct AvatarView: View {
                     .aspectRatio(contentMode: .fit)
                     .padding(size * 0.15)
             } else {
-                Text(placeholder)
-                    .font(.system(size: size * 0.5))
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(PetCareTheme.muted)
+                    .padding(size * 0.1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -87,18 +87,15 @@ struct CircleAvatarView: View {
 
     var body: some View {
         Group {
-            if let urlString = url {
-                if urlString.hasPrefix("ava_") {
-                    Image(urlString)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else if urlString.hasPrefix("file://"),
-                          let path = URL(string: urlString)?.path,
-                          let uiImage = UIImage(contentsOfFile: path) {
+            if let urlString = url, !urlString.isEmpty {
+                if urlString.hasPrefix("file://"),
+                   let path = URL(string: urlString)?.path,
+                   let uiImage = UIImage(contentsOfFile: path) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                } else if let remoteURL = URL(string: urlString) {
+                } else if let remoteURL = URL(string: urlString),
+                          urlString.hasPrefix("http") {
                     AsyncImage(url: remoteURL) { phase in
                         switch phase {
                         case .success(let image):

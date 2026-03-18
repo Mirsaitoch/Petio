@@ -129,17 +129,22 @@ final class AppState: ObservableObject {
 
     // MARK: - Load from API (business logic)
     func loadAll() async {
+        // Phase 1: load independent data in parallel
         async let p: () = loadPets()
         async let r: () = loadReminders()
-        async let w: () = loadWeightHistory()
-        async let d: () = loadDiary()
         async let a: () = loadArticles()
         async let po: () = loadPosts()
         async let u: () = loadProfile()
-        _ = await (p, r, w, d, a, po, u)
+        _ = await (p, r, a, po, u)
+
         if selectedPetId.isEmpty, let first = pets.first {
             selectedPetId = first.id
         }
+
+        // Phase 2: load pet-dependent data (needs pets to be loaded first)
+        async let w: () = loadWeightHistory()
+        async let d: () = loadDiary()
+        _ = await (w, d)
     }
 
     func loadPets() async {
@@ -222,11 +227,16 @@ final class AppState: ObservableObject {
 
     func loadPosts() async {
         postsLoadFailed = false
+        print("[POSTS] loadPosts: начало загрузки")
         do {
-            posts = try await api.fetchPosts(club: nil)
+            let fetched = try await api.fetchPosts(club: nil)
+            posts = fetched
+            print("[POSTS] loadPosts: загружено \(fetched.count) постов")
         } catch {
+            print("[POSTS] loadPosts: ошибка — \(error)")
             if posts.isEmpty {
                 postsLoadFailed = true
+                print("[POSTS] loadPosts: постов нет, postsLoadFailed=true")
             }
         }
     }
@@ -235,69 +245,110 @@ final class AppState: ObservableObject {
         guard authManager?.isAuthenticated == true else {
             // Guest: use anonymous profile from local storage or generate one
             if let saved: UserProfile = LocalStorage.load(from: .profile) {
+                print("[PROFILE] Гость: загружен из кеша — username='\(saved.username)'")
                 user = saved
                 return
             }
             let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk"]
             let zoo = "\(animals.randomElement() ?? "pet")-\(Int.random(in: 10000...99999))"
-            let avatar = "ava_\(Int.random(in: 1...9))"
-            let guestProfile = UserProfile(username: zoo, email: nil, avatar: avatar, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+            let guestProfile = UserProfile(username: zoo, email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
             user = guestProfile
             LocalStorage.save(guestProfile, to: .profile)
+            print("[PROFILE] Гость: создан новый — username='\(zoo)'")
             return
         }
+
+        let savedUsername = UserDefaults.standard.string(forKey: "petio_session_username")
+        print("[PROFILE] Авторизован. petio_session_username='\(savedUsername ?? "nil")'")
+
         // Try to use cached profile first, then refresh from API
         if let cached: UserProfile = LocalStorage.load(from: .profile) {
             user = cached
+            print("[PROFILE] Загружен кеш профиля — username='\(cached.username)'")
         }
         do {
-            var profile = try await api.fetchProfile()
+            let profile = try await api.fetchProfile()
+            print("[PROFILE] Ответ сервера — username='\(profile.username)', email='\(profile.email ?? "nil")', avatar='\(profile.avatar ?? "nil")'")
+
+            var result = profile
 
             // Подставляем email из сессии, если сервер не вернул
-            if (profile.email ?? "").isEmpty,
+            if (result.email ?? "").isEmpty,
                let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
-                profile.email = savedEmail
+                result.email = savedEmail
+                print("[PROFILE] Email подставлен из сессии: '\(savedEmail)'")
             }
 
             // Подставляем username из сессии, если сервер не вернул
-            if profile.username.trimmingCharacters(in: .whitespaces).isEmpty {
-                let key = "petio_session_username"
-                if let savedUsername = UserDefaults.standard.string(forKey: key) {
-                    profile.username = savedUsername
+            let usernameKey = "petio_session_username"
+            if result.username.trimmingCharacters(in: .whitespaces).isEmpty {
+                if let saved = UserDefaults.standard.string(forKey: usernameKey) {
+                    result.username = saved
+                    print("[PROFILE] Username пустой на сервере, подставлен из UserDefaults: '\(saved)'")
                 } else {
                     let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk"]
                     let zoo = "\(animals.randomElement() ?? "pet")-\(Int.random(in: 10000...99999))"
-                    UserDefaults.standard.set(zoo, forKey: key)
-                    profile.username = zoo
+                    UserDefaults.standard.set(zoo, forKey: usernameKey)
+                    result.username = zoo
+                    print("[PROFILE] Username пустой везде, сгенерирован новый: '\(zoo)'")
                 }
+            } else {
+                // Сервер вернул username — сохраняем локально
+                UserDefaults.standard.set(result.username, forKey: usernameKey)
+                print("[PROFILE] Username с сервера сохранён: '\(result.username)'")
             }
 
-            // Дефолтная аватарка
-            if profile.avatar == nil {
-                let key = "petio_user_default_avatar"
-                if let saved = UserDefaults.standard.string(forKey: key) {
-                    profile.avatar = saved
-                } else {
-                    let avatar = "ava_\(Int.random(in: 1...9))"
-                    UserDefaults.standard.set(avatar, forKey: key)
-                    profile.avatar = avatar
-                }
-            }
-
-            user = profile
-            LocalStorage.save(profile, to: .profile)
+            user = result
+            LocalStorage.save(result, to: .profile)
+            print("[PROFILE] Итоговый профиль — username='\(result.username)', email='\(result.email ?? "nil")'")
         } catch {
-            // keep current state on error — user already set from cache above if available
+            print("[PROFILE] Ошибка загрузки профиля с сервера: \(error)")
+
+            // Fallback: build profile from saved session data so we don't show a random nickname
+            let usernameKey = "petio_session_username"
+            let fallbackUsername = UserDefaults.standard.string(forKey: usernameKey) ?? ""
+            let fallbackEmail = UserDefaults.standard.string(forKey: "petio_session_email")
+            let fallbackAvatar: String? = nil
+
+            if !fallbackUsername.isEmpty || fallbackEmail != nil {
+                let fallback = UserProfile(
+                    username: fallbackUsername,
+                    email: fallbackEmail,
+                    avatar: fallbackAvatar,
+                    bio: user.bio,
+                    petsCount: pets.count,
+                    postsCount: posts.count,
+                    joinDate: ""
+                )
+                user = fallback
+                LocalStorage.save(fallback, to: .profile)
+                print("[PROFILE] Fallback профиль из UserDefaults — username='\(fallbackUsername)', email='\(fallbackEmail ?? "nil")'")
+            }
         }
     }
 
     func resetUserSession() {
-        // Clear only remote/social data — local pets, reminders, diary stay
-        user = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+        // Clear all in-memory state
+        pets = []
+        reminders = []
+        weightHistory = [:]
+        diary = []
+        articles = []
         posts = []
         chatMessages = []
-        LocalStorage.delete(file: .profile)
-        UserDefaults.standard.removeObject(forKey: "petio_user_default_avatar")
+        customDiaryTags = []
+        selectedPetId = ""
+        user = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+
+        // Clear all local storage files
+        for file in StorageFile.allCases {
+            LocalStorage.delete(file: file)
+        }
+
+        // Clear API-level cache (CacheManager uses UserDefaults)
+        CacheManager().clearAll()
+
+        // Clear all UserDefaults session keys
         UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
     }
@@ -384,26 +435,27 @@ final class AppState: ObservableObject {
     }
 
     func addWeightRecord(petId: String, _ record: WeightRecord) async {
+        print("[WEIGHT] addWeightRecord: petId='\(petId)', date='\(record.date)', weight=\(record.weight)")
+        guard !petId.isEmpty else {
+            print("[WEIGHT] addWeightRecord: petId пустой, пропускаю")
+            return
+        }
         do {
             try await api.addWeightRecord(petId: petId, record)
-            var list = weightHistory[petId] ?? []
-            list.append(record)
-            list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
-            weightHistory[petId] = list
-            // Update current weight in pet from the latest record after sorting
-            if let latest = list.last, let i = pets.firstIndex(where: { $0.id == petId }) {
-                pets[i].weight = latest.weight
-            }
+            print("[WEIGHT] addWeightRecord: сервер OK")
         } catch {
-            var list = weightHistory[petId] ?? []
-            list.append(record)
-            list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
-            weightHistory[petId] = list
-            if let latest = list.last, let i = pets.firstIndex(where: { $0.id == petId }) {
-                pets[i].weight = latest.weight
-            }
+            print("[WEIGHT] addWeightRecord: ошибка сервера — \(error), сохраняю локально")
+        }
+        var list = weightHistory[petId] ?? []
+        list.append(record)
+        list.sort { ($0.date).localizedStandardCompare($1.date) == .orderedAscending }
+        weightHistory[petId] = list
+        if let latest = list.last, let i = pets.firstIndex(where: { $0.id == petId }) {
+            pets[i].weight = latest.weight
         }
         saveWeightHistory()
+        savePets()
+        print("[WEIGHT] addWeightRecord: сохранено, записей для petId=\(weightHistory[petId]?.count ?? 0)")
     }
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async {
@@ -470,24 +522,26 @@ final class AppState: ObservableObject {
     func addPost(_ post: Post, image: UIImage? = nil) async {
         isPostUploading = image != nil
         defer { isPostUploading = false }
+        print("[POSTS] addPost: author='\(post.author)', content='\(post.content.prefix(50))', hasImage=\(image != nil)")
         do {
             let added: Post
             if let image {
                 let resized = resizedForUpload(image)
                 if let imageData = resized.jpegData(compressionQuality: 0.7) {
-                    print("[DEBUG] uploading \(imageData.count) bytes")
+                    print("[POSTS] addPost: загружаю изображение \(imageData.count) bytes")
                     added = try await api.addPostWithImage(post, imageData: imageData)
-                    print("[DEBUG] addPostWithImage success — added.image = \(added.image ?? "NIL")")
+                    print("[POSTS] addPost: с изображением успех — image=\(added.image ?? "nil")")
                 } else {
-                    print("[DEBUG] jpegData failed — text-only")
+                    print("[POSTS] addPost: jpegData не удалось, отправляю без изображения")
                     added = try await api.addPost(post)
                 }
             } else {
                 added = try await api.addPost(post)
             }
             posts.insert(added, at: 0)
+            print("[POSTS] addPost: добавлен в список, всего постов=\(posts.count)")
         } catch {
-            print("[DEBUG] addPost error: \(error)")
+            print("[POSTS] addPost: ошибка — \(error), добавляю локально")
             posts.insert(post, at: 0)
         }
     }

@@ -10,7 +10,7 @@ import SwiftUI
 struct AuthPromptSheet: View {
     @Binding var isPresented: Bool
     let message: String
-    @State private var showAuth = false
+    var onLogin: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 24) {
@@ -27,17 +27,17 @@ struct AuthPromptSheet: View {
                     .frame(width: 80, height: 80)
                 Image(systemName: "pawprint.fill")
                     .font(.system(size: 36))
-                    .foregroundColor(PetCareTheme.primary)
+                    .foregroundStyle(PetCareTheme.primary)
             }
 
             // Text
             VStack(spacing: 8) {
                 Text("Нужен аккаунт")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(PetCareTheme.primary)
+                    .foregroundStyle(PetCareTheme.primary)
                 Text(message)
                     .font(.system(size: 14))
-                    .foregroundColor(PetCareTheme.muted)
+                    .foregroundStyle(PetCareTheme.muted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 16)
             }
@@ -46,15 +46,15 @@ struct AuthPromptSheet: View {
             VStack(spacing: 10) {
                 Button {
                     isPresented = false
-                    showAuth = true
+                    onLogin()
                 } label: {
                     Text("Войти / Зарегистрироваться")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(PetCareTheme.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .clipShape(.rect(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
 
@@ -63,7 +63,7 @@ struct AuthPromptSheet: View {
                 } label: {
                     Text("Позже")
                         .font(.system(size: 15))
-                        .foregroundColor(PetCareTheme.muted)
+                        .foregroundStyle(PetCareTheme.muted)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                 }
@@ -75,11 +75,8 @@ struct AuthPromptSheet: View {
         }
         .frame(maxWidth: .infinity)
         .background(PetCareTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(.rect(cornerRadius: 24))
         .presentationDetents([.height(380)])
         .presentationDragIndicator(.hidden)
-        .fullScreenCover(isPresented: $showAuth) {
-            AuthView()
-        }
     }
 }

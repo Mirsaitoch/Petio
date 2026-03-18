@@ -31,8 +31,8 @@ enum MockData {
                 photo: dogPhoto,
                 birthDate: "2023-03-15",
                 vaccinations: [
-                    Vaccination(id: "v1", name: "Бешенство", date: "2025-06-10", nextDate: "2026-06-10"),
-                    Vaccination(id: "v2", name: "DHPP", date: "2025-05-01", nextDate: "2026-05-01")
+                    Vaccination(id: "v1", name: "Бешенство", date: "2025-06-10", expirationDate: "2026-06-10"),
+                    Vaccination(id: "v2", name: "DHPP", date: "2025-05-01", expirationDate: "2026-05-01")
                 ],
                 treatments: [],
                 features: ["Аллергия на курицу", "Любит плавать", "Дружелюбный"]
@@ -47,7 +47,7 @@ enum MockData {
                 photo: catPhoto,
                 birthDate: "2024-01-20",
                 vaccinations: [
-                    Vaccination(id: "v3", name: "Бешенство", date: "2025-08-15", nextDate: "2026-08-15")
+                    Vaccination(id: "v3", name: "Бешенство", date: "2025-08-15", expirationDate: "2026-08-15")
                 ],
                 treatments: [],
                 features: ["Домашняя", "Любит тунец", "Ласковая"]

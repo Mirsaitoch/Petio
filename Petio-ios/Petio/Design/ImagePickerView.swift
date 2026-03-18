@@ -55,7 +55,6 @@ struct AvatarPickerButton: View {
         .confirmationDialog("Фото", isPresented: $showOptions, titleVisibility: .visible) {
             Button("Выбрать из галереи") { showGallery = true }
             Button("Сделать фото") { showCamera = true }
-            Button("Стандартная аватарка") { photoPath = "ava_\(Int.random(in: 1...9))" }
             if photoPath != nil {
                 Button("Убрать фото", role: .destructive) { photoPath = nil }
             }

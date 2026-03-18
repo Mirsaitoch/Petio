@@ -7,6 +7,7 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
+    @Environment(\.dismiss) private var dismiss
 
     @State private var email = ""
     @State private var password = ""
@@ -14,19 +15,34 @@ struct LoginView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 32) {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PetCareTheme.muted)
+                            .frame(width: 32, height: 32)
+                            .background(PetCareTheme.secondary)
+                            .clipShape(.circle)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+
                 // Logo
                 VStack(spacing: 12) {
                     Image(systemName: "pawprint.fill")
                         .font(.system(size: 60))
-                        .foregroundColor(PetCareTheme.primary)
+                        .foregroundStyle(PetCareTheme.primary)
                     Text("Petio")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(PetCareTheme.primary)
+                        .foregroundStyle(PetCareTheme.primary)
                     Text("Забота о питомцах")
                         .font(.system(size: 16))
-                        .foregroundColor(PetCareTheme.muted)
+                        .foregroundStyle(PetCareTheme.muted)
                 }
-                .padding(.top, 60)
 
                 // Form
                 VStack(spacing: 16) {
@@ -34,7 +50,7 @@ struct LoginView: View {
                         Text("Email")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(PetCareTheme.muted)
-                        TextField("you@example.com", text: $email)
+                        TextField("Ваша почта", text: $email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
@@ -91,6 +107,7 @@ struct LoginView: View {
         }
         .background(PetCareTheme.background.ignoresSafeArea())
         .navigationBarHidden(true)
+        .onAppear { viewModel.errorMessage = nil }
     }
 }
 

@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var showAddDiarySheet = false
     @State private var quickTaskText = ""
     @FocusState private var quickTaskFocused: Bool
+    @State private var showPetPicker = false
     
     var body: some View {
         NavigationStack(path: $path) {
@@ -76,6 +77,21 @@ struct HomeView: View {
                     onCancel: { showAddReminderSheet = false }
                 )
             }
+            .overlay {
+                if showPetPicker {
+                    PetPickerPopup(
+                        pets: app.pets,
+                        onSelect: { pet in
+                            withAnimation { showPetPicker = false }
+                            createQuickReminder(petId: pet.id, petName: pet.name)
+                        },
+                        onDismiss: {
+                            withAnimation { showPetPicker = false }
+                        }
+                    )
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: showPetPicker)
         }
     }
     
@@ -169,6 +185,22 @@ struct HomeView: View {
                             }
                             .buttonStyle(.plain)
                         }
+
+                        Button {
+                            showAddPetSheet = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.8))
+                                .frame(width: 44, height: 44)
+                                .background(.white.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 20)
                 }
@@ -435,8 +467,19 @@ struct HomeView: View {
     private func submitQuickTask() {
         let trimmed = quickTaskText.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        let petId = app.selectedPetId.isEmpty ? (app.pets.first?.id ?? "") : app.selectedPetId
-        let petName = app.pets.first(where: { $0.id == petId })?.name ?? ""
+
+        if app.pets.count > 1 {
+            quickTaskFocused = false
+            showPetPicker = true
+        } else {
+            let pet = app.pets.first
+            createQuickReminder(petId: pet?.id ?? "", petName: pet?.name ?? "")
+        }
+    }
+
+    private func createQuickReminder(petId: String, petName: String) {
+        let trimmed = quickTaskText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
         let now = Date()
         let dateFmt = DateFormatter(); dateFmt.dateFormat = "yyyy-MM-dd"
         let timeFmt = DateFormatter(); timeFmt.dateFormat = "HH:mm"

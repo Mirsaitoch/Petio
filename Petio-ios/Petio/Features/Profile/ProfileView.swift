@@ -20,6 +20,7 @@ struct ProfileView: View {
     @State private var showLogoutAlert = false
     @State private var selectedTab: ProfileTab = .posts
     @State private var showAuthPrompt = false
+    @State private var showAuthView = false
 
     private var myPosts: [Post] {
         app.posts.filter { $0.author == app.user.username }
@@ -60,8 +61,12 @@ struct ProfileView: View {
             .sheet(isPresented: $showAuthPrompt) {
                 AuthPromptSheet(
                     isPresented: $showAuthPrompt,
-                    message: "Войдите, чтобы сохранить данные и открыть больше возможностей"
+                    message: "Войдите, чтобы сохранить данные и открыть больше возможностей",
+                    onLogin: { showAuthView = true }
                 )
+            }
+            .fullScreenCover(isPresented: $showAuthView) {
+                AuthView()
             }
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet(user: app.user) { updated in
@@ -406,7 +411,11 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 settingsRow(icon: "bell", color: .blue, title: "Уведомления")
                 settingsRow(icon: "lock.shield", color: .green, title: "Конфиденциальность")
-                settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь")
+                settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь") {
+                    if let url = URL(string: "https://forms.gle/CH5Z1QLiWYbmZeCh6") {
+                        UIApplication.shared.open(url)
+                    }
+                }
                 Divider().padding(.leading, 60)
                 if authManager.isAuthenticated {
                     settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти") {

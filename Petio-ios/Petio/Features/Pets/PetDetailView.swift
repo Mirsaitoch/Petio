@@ -171,9 +171,7 @@ struct PetDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
-        } else if urlString.hasPrefix("ava_") {
-            gradientHero(pet: pet)
-        } else if let u = URL(string: urlString) {
+        } else if let u = URL(string: urlString), urlString.hasPrefix("http") {
             ZStack(alignment: .bottomLeading) {
                 AsyncImage(url: u) { phase in
                     if let img = phase.image {
@@ -209,7 +207,6 @@ struct PetDetailView: View {
     }
 
     private func resolvedImage(urlString: String) -> Image? {
-        guard !urlString.hasPrefix("ava_") else { return nil }
         guard urlString.hasPrefix("file://"),
               let path = URL(string: urlString)?.path,
               let uiImage = UIImage(contentsOfFile: path) else { return nil }
@@ -377,8 +374,10 @@ struct PetDetailView: View {
                     .foregroundColor(PetCareTheme.primary)
                 HStack(spacing: 8) {
                     Label(v.date, systemImage: "calendar")
-                    Text("·")
-                    Label("след. \(v.nextDate)", systemImage: "arrow.clockwise")
+                    if let expiration = v.expirationDate {
+                        Text("·")
+                        Label("до \(expiration)", systemImage: "clock")
+                    }
                 }
                 .font(.system(size: 11))
                 .foregroundColor(PetCareTheme.muted)
@@ -840,7 +839,8 @@ struct AddVaccinationSheet: View {
 
     @State private var name = ""
     @State private var date = Date()
-    @State private var nextDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    @State private var hasExpirationDate = false
+    @State private var expirationDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @FocusState private var nameFocused: Bool
 
     private static let isoFormatter: DateFormatter = {
@@ -869,7 +869,7 @@ struct AddVaccinationSheet: View {
                         id: UUID().uuidString,
                         name: name.trimmingCharacters(in: .whitespaces),
                         date: Self.isoFormatter.string(from: date),
-                        nextDate: Self.isoFormatter.string(from: nextDate)
+                        expirationDate: hasExpirationDate ? Self.isoFormatter.string(from: expirationDate) : nil
                     )
                     onSave(v)
                 } label: {
@@ -903,13 +903,23 @@ struct AddVaccinationSheet: View {
                 }
 
                 datePicker(label: "Дата прививки", icon: "calendar", color: Color(hex: "#2196F3"), selection: $date)
-                datePicker(label: "Следующая прививка", icon: "arrow.clockwise", color: Color(hex: "#4CAF50"), selection: $nextDate)
+
+                Toggle(isOn: $hasExpirationDate.animation()) {
+                    Label("Срок действия", systemImage: "clock")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(PetCareTheme.primary)
+                }
+                .tint(PetCareTheme.primary)
+
+                if hasExpirationDate {
+                    datePicker(label: "Действительна до", icon: "clock", color: Color(hex: "#4CAF50"), selection: $expirationDate)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
         .background(PetCareTheme.background)
-        .presentationDetents([.height(380)])
+        .presentationDetents([.medium])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
         .onAppear { nameFocused = true }

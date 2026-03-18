@@ -27,6 +27,7 @@ struct FeedView: View {
     @State private var commentText: [String: String] = [:]
     @State private var showAuthPrompt = false
     @State private var authPromptMessage = ""
+    @State private var showAuthView = false
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
@@ -66,7 +67,14 @@ struct FeedView: View {
         }
         .background(PetCareTheme.background)
         .sheet(isPresented: $showAuthPrompt) {
-            AuthPromptSheet(isPresented: $showAuthPrompt, message: authPromptMessage)
+            AuthPromptSheet(
+                isPresented: $showAuthPrompt,
+                message: authPromptMessage,
+                onLogin: { showAuthView = true }
+            )
+        }
+        .fullScreenCover(isPresented: $showAuthView) {
+            AuthView()
         }
         .sheet(isPresented: $showNewPost) {
             NewPostSheet(user: app.user) { post, image in

@@ -19,6 +19,8 @@ struct ContentView: View {
             }
             .onChange(of: authManager.isAuthenticated) { _, isAuth in
                 if isAuth {
+                    // Clear guest profile so it doesn't leak into authenticated session
+                    LocalStorage.delete(file: .profile)
                     Task {
                         await appState.loadAll()
                     }

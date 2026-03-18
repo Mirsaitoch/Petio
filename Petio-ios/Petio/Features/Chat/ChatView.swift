@@ -15,6 +15,7 @@ struct ChatView: View {
     @State private var isTyping = false
     @FocusState private var inputFocused: Bool
     @State private var showAuthPrompt = false
+    @State private var showAuthView = false
 
     private let quickQuestions = [
         "Как часто кормить щенка?",
@@ -33,8 +34,12 @@ struct ChatView: View {
         .sheet(isPresented: $showAuthPrompt) {
             AuthPromptSheet(
                 isPresented: $showAuthPrompt,
-                message: "Чтобы общаться с AI-помощником, войдите в аккаунт"
+                message: "Чтобы общаться с AI-помощником, войдите в аккаунт",
+                onLogin: { showAuthView = true }
             )
+        }
+        .fullScreenCover(isPresented: $showAuthView) {
+            AuthView()
         }
     }
 

@@ -2,7 +2,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -138,6 +140,10 @@ func (h *ChatHandler) UpdateChatTitle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateChatTitle(r.Context(), chatID, userID, body.Title); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "chat not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -161,6 +167,10 @@ func (h *ChatHandler) DeleteChat(w http.ResponseWriter, r *http.Request) {
 
 	chatID := chi.URLParam(r, "id")
 	if err := h.service.DeleteChat(r.Context(), chatID, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "chat not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

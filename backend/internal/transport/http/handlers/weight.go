@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -154,6 +156,10 @@ func (h *WeightHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	rec.Date = date
 	if err := h.repo.Update(r.Context(), petID, userID, rec); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "weight record not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -186,6 +192,10 @@ func (h *WeightHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Delete(r.Context(), petID, userID, date); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "weight record not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

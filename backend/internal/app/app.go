@@ -13,6 +13,7 @@ import (
 	"petio/backend/clients/moderation"
 	"petio/backend/clients/s3"
 	"petio/backend/internal/config"
+	"petio/backend/internal/email"
 	"petio/backend/internal/migrations"
 	"petio/backend/internal/repository/postgres"
 	"petio/backend/internal/service"
@@ -91,9 +92,19 @@ func New(cfg *config.Config) (*App, error) {
 	postRepo := postgres.NewPostRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
+	resetTokenRepo := postgres.NewPasswordResetTokenRepository(db)
+	emailVerifyRepo := postgres.NewEmailVerificationTokenRepository(db)
+	shelterRepo := postgres.NewShelterRepository(db)
 	chatRepo := postgres.NewChatRepository(db)
 
-	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, cfg.JWT.Secret, cfg.JWT.Expiration)
+	emailSender := email.NewSender(cfg.SMTP)
+	if emailSender != nil {
+		log.Printf("smtp: enabled (host=%s)", cfg.SMTP.Host)
+	} else {
+		log.Println("smtp: disabled (SMTP_HOST not set) — codes will be logged")
+	}
+
+	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, resetTokenRepo, emailVerifyRepo, emailSender, cfg.JWT.Secret, cfg.JWT.Expiration)
 	petHandler := handlers.NewPetHandler(petRepo)
 	reminderHandler := handlers.NewReminderHandler(reminderRepo)
 	weightHandler := handlers.NewWeightHandler(weightRepo)
@@ -104,11 +115,12 @@ func New(cfg *config.Config) (*App, error) {
 	chatHandler := handlers.NewChatHandler(chatService)
 	profileHandler := handlers.NewProfileHandler(userRepo, modClient, thresholds)
 	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)
+	shelterHandler := handlers.NewShelterHandler(shelterRepo)
 
 	router := httptransport.NewRouter(
 		authHandler, petHandler, reminderHandler, weightHandler,
 		diaryHandler, articleHandler, postHandler, chatHandler,
-		profileHandler, uploadHandler,
+		profileHandler, uploadHandler, shelterHandler,
 		cfg.JWT.Secret,
 	)
 

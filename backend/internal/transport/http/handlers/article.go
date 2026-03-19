@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -108,6 +110,10 @@ func (h *ArticleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	a.ID = id
 	if err := h.repo.Update(r.Context(), &a); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "article not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -128,6 +134,10 @@ func (h *ArticleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "article not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

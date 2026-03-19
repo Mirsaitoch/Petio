@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -129,6 +131,10 @@ func (h *PetHandler) Update(w http.ResponseWriter, r *http.Request) {
 	pet.ID = id
 	pet.UserID = userID
 	if err := h.repo.Update(r.Context(), &pet); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "pet not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -154,6 +160,10 @@ func (h *PetHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Delete(r.Context(), id, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "pet not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

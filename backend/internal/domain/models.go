@@ -102,6 +102,15 @@ type UserProfile struct {
 	UserID     string    `json:"-" db:"user_id"`
 }
 
+type Shelter struct {
+	ID          string  `json:"id" db:"id"`
+	Image       *string `json:"image,omitempty" db:"image"`
+	Type        string  `json:"type" db:"type"`
+	Name        string  `json:"name" db:"name"`
+	Description string  `json:"description" db:"description"`
+	WebsiteURL  string  `json:"websiteUrl" db:"website_url"`
+}
+
 type User struct {
 	ID       string `json:"id" db:"id"`
 	Email    string `json:"email" db:"email"`

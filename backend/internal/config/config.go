@@ -18,6 +18,7 @@ type Config struct {
 	JWT        JWTConfig
 	Moderation ModerationConfig
 	YandexAI   YandexAIConfig
+	SMTP       SMTPConfig
 }
 
 type DBConfig struct {
@@ -50,6 +51,18 @@ type YandexAIConfig struct {
 // S3Configured возвращает true, если заданы бакет и ключи доступа (S3 обязателен для загрузки).
 func (s S3Config) S3Configured() bool {
 	return s.Bucket != "" && s.AccessKeyID != "" && s.SecretAccessKey != ""
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+}
+
+func (s SMTPConfig) Configured() bool {
+	return s.Host != "" && s.From != ""
 }
 
 type JWTConfig struct {
@@ -103,6 +116,13 @@ func Load() *Config {
 			APIKey:   getEnv("YANDEX_AI_API_KEY", ""),
 			FolderID: getEnv("YANDEX_AI_FOLDER_ID", ""),
 			BaseURL:  getEnv("YANDEX_AI_BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
+		},
+		SMTP: SMTPConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnv("SMTP_PORT", "587"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", ""),
 		},
 	}
 }

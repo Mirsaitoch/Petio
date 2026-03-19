@@ -24,6 +24,7 @@ func NewRouter(
 	chat *handlers.ChatHandler,
 	profile *handlers.ProfileHandler,
 	upload *handlers.UploadHandler,
+	shelter *handlers.ShelterHandler,
 	jwtSecret string,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -47,6 +48,11 @@ func NewRouter(
 		r.Post("/auth/login", auth.Login)
 		r.Post("/auth/register", auth.Register)
 		r.Post("/auth/refresh", auth.RefreshToken)
+		r.Post("/auth/device", auth.LoginByDevice)
+		r.Get("/auth/device/accounts", auth.ListDeviceAccounts)
+		r.Post("/auth/device/switch", auth.SwitchDeviceAccount)
+		r.Post("/auth/forgot-password", auth.ForgotPassword)
+		r.Post("/auth/reset-password", auth.ResetPassword)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWT(jwtSecret))
@@ -114,6 +120,17 @@ func NewRouter(
 
 			r.Get("/profile", profile.Get)
 			r.Put("/profile", profile.Update)
+
+			r.Post("/auth/link-email", auth.LinkEmail)
+			r.Post("/auth/verify-email", auth.VerifyEmail)
+
+			r.Route("/shelters", func(r chi.Router) {
+				r.Get("/", shelter.List)
+				r.Post("/", shelter.Create)
+				r.Get("/{id}", shelter.Get)
+				r.Put("/{id}", shelter.Update)
+				r.Delete("/{id}", shelter.Delete)
+			})
 
 		})
 	})

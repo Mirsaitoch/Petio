@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -141,6 +143,10 @@ func (h *DiaryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	e.ID = id
 	e.UserID = userID
 	if err := h.repo.Update(r.Context(), &e); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "entry not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -166,6 +172,10 @@ func (h *DiaryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Delete(r.Context(), id, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "entry not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

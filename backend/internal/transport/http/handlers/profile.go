@@ -101,8 +101,12 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile, err := h.repo.GetProfile(r.Context(), userID)
-	if err != nil || profile == nil {
-		jsonError(w, http.StatusInternalServerError, "profile not found")
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if profile == nil {
+		jsonError(w, http.StatusNotFound, "profile not found")
 		return
 	}
 	profile.Name = p.Name

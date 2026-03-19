@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"petio/backend/internal/domain"
 )
@@ -17,44 +18,59 @@ func NewShelterRepository(db *sql.DB) *ShelterRepository {
 	return &ShelterRepository{db: db}
 }
 
+const shelterColumns = `id, name, tagline, image_url, category, city, founded, phone, website, description, long_description, COALESCE(tags, '{}'), COALESCE(needs, '{}')`
+
+func scanShelter(row interface{ Scan(...any) error }) (*domain.Shelter, error) {
+	var s domain.Shelter
+	var tags, needs pq.StringArray
+	err := row.Scan(
+		&s.ID, &s.Name, &s.Tagline, &s.ImageURL, &s.Category,
+		&s.City, &s.Founded, &s.Phone, &s.Website,
+		&s.Description, &s.LongDescription, &tags, &needs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	s.Tags = tags
+	s.Needs = needs
+	if s.Tags == nil {
+		s.Tags = []string{}
+	}
+	if s.Needs == nil {
+		s.Needs = []string{}
+	}
+	return &s, nil
+}
+
 func (r *ShelterRepository) List(ctx context.Context) ([]domain.Shelter, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, image, type, name, description, website_url FROM shelters ORDER BY name`)
+		`SELECT `+shelterColumns+` FROM shelters ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	list := make([]domain.Shelter, 0)
 	for rows.Next() {
-		var s domain.Shelter
-		var img sql.NullString
-		if err := rows.Scan(&s.ID, &img, &s.Type, &s.Name, &s.Description, &s.WebsiteURL); err != nil {
+		s, err := scanShelter(rows)
+		if err != nil {
 			return nil, err
 		}
-		if img.Valid {
-			s.Image = &img.String
-		}
-		list = append(list, s)
+		list = append(list, *s)
 	}
 	return list, rows.Err()
 }
 
 func (r *ShelterRepository) GetByID(ctx context.Context, id string) (*domain.Shelter, error) {
-	var s domain.Shelter
-	var img sql.NullString
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id, image, type, name, description, website_url FROM shelters WHERE id = $1`, id,
-	).Scan(&s.ID, &img, &s.Type, &s.Name, &s.Description, &s.WebsiteURL)
+	row := r.db.QueryRowContext(ctx,
+		`SELECT `+shelterColumns+` FROM shelters WHERE id = $1`, id)
+	s, err := scanShelter(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if img.Valid {
-		s.Image = &img.String
-	}
-	return &s, nil
+	return s, nil
 }
 
 func (r *ShelterRepository) Create(ctx context.Context, s *domain.Shelter) error {
@@ -62,16 +78,22 @@ func (r *ShelterRepository) Create(ctx context.Context, s *domain.Shelter) error
 		s.ID = uuid.New().String()
 	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO shelters (id, image, type, name, description, website_url) VALUES ($1, $2, $3, $4, $5, $6)`,
-		s.ID, s.Image, s.Type, s.Name, s.Description, s.WebsiteURL,
+		`INSERT INTO shelters (id, name, tagline, image_url, category, city, founded, phone, website, description, long_description, tags, needs)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		s.ID, s.Name, s.Tagline, s.ImageURL, s.Category,
+		s.City, s.Founded, s.Phone, s.Website,
+		s.Description, s.LongDescription, pq.Array(s.Tags), pq.Array(s.Needs),
 	)
 	return err
 }
 
 func (r *ShelterRepository) Update(ctx context.Context, s *domain.Shelter) error {
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE shelters SET image=$2, type=$3, name=$4, description=$5, website_url=$6 WHERE id=$1`,
-		s.ID, s.Image, s.Type, s.Name, s.Description, s.WebsiteURL,
+		`UPDATE shelters SET name=$2, tagline=$3, image_url=$4, category=$5, city=$6, founded=$7, phone=$8, website=$9, description=$10, long_description=$11, tags=$12, needs=$13
+		 WHERE id=$1`,
+		s.ID, s.Name, s.Tagline, s.ImageURL, s.Category,
+		s.City, s.Founded, s.Phone, s.Website,
+		s.Description, s.LongDescription, pq.Array(s.Tags), pq.Array(s.Needs),
 	)
 	if err != nil {
 		return err

@@ -103,12 +103,19 @@ type UserProfile struct {
 }
 
 type Shelter struct {
-	ID          string  `json:"id" db:"id"`
-	Image       *string `json:"image,omitempty" db:"image"`
-	Type        string  `json:"type" db:"type"`
-	Name        string  `json:"name" db:"name"`
-	Description string  `json:"description" db:"description"`
-	WebsiteURL  string  `json:"websiteUrl" db:"website_url"`
+	ID              string   `json:"id" db:"id"`
+	Name            string   `json:"name" db:"name"`
+	Tagline         string   `json:"tagline" db:"tagline"`
+	ImageURL        string   `json:"imageURL" db:"image_url"`
+	Category        string   `json:"category" db:"category"`
+	City            string   `json:"city" db:"city"`
+	Founded         string   `json:"founded" db:"founded"`
+	Phone           string   `json:"phone" db:"phone"`
+	Website         string   `json:"website" db:"website"`
+	Description     string   `json:"description" db:"description"`
+	LongDescription string   `json:"longDescription" db:"long_description"`
+	Tags            []string `json:"tags" db:"-"`
+	Needs           []string `json:"needs" db:"-"`
 }
 
 type User struct {

@@ -131,11 +131,18 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 -- ========== SHELTERS ==========
 CREATE TABLE IF NOT EXISTS shelters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    image TEXT,
-    type TEXT NOT NULL DEFAULT 'shelter',
     name TEXT NOT NULL,
+    tagline TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT 'shelter',
+    city TEXT NOT NULL DEFAULT '',
+    founded TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    website TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
-    website_url TEXT NOT NULL DEFAULT ''
+    long_description TEXT NOT NULL DEFAULT '',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    needs TEXT[] NOT NULL DEFAULT '{}'
 );
 
 -- ========== DEVICE AUTH ==========

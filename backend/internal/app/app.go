@@ -70,8 +70,6 @@ func New(cfg *config.Config) (*App, error) {
 	} else {
 		log.Println("moderation: disabled (MODERATION_URL not set)")
 	}
-	thresholds := moderation.DefaultThresholds()
-
 	var aiClient *yandexai.Client
 	if cfg.YandexAI.APIKey != "" && cfg.YandexAI.FolderID != "" {
 		aiClient = yandexai.New(yandexai.Config{
@@ -110,10 +108,10 @@ func New(cfg *config.Config) (*App, error) {
 	weightHandler := handlers.NewWeightHandler(weightRepo)
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
-	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient, thresholds)
+	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient)
 	chatService := service.NewChatService(aiClient, chatRepo)
 	chatHandler := handlers.NewChatHandler(chatService)
-	profileHandler := handlers.NewProfileHandler(userRepo, modClient, thresholds)
+	profileHandler := handlers.NewProfileHandler(userRepo, modClient)
 	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)
 	shelterHandler := handlers.NewShelterHandler(shelterRepo)
 

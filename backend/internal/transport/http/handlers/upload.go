@@ -137,17 +137,17 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 
 	// ── ML image moderation ──
 	if h.mod != nil {
-		scores, err := h.mod.CheckImage(r.Context(), body, header.Filename)
+		resp, err := h.mod.CheckImage(r.Context(), body, header.Filename)
 		if err != nil {
 			log.Printf("WARNING: image moderation failed: %v", err)
-		} else if scores != nil && scores.Block {
+		} else if resp != nil && resp.Blocked {
 			reason := "inappropriate_content"
-			if scores.Reason != nil {
-				reason = *scores.Reason
+			if resp.Reason != nil {
+				reason = *resp.Reason
 			}
 			jsonError(w, http.StatusUnprocessableEntity,
 				fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
-					reason, scores.NSFWScore, scores.PornScore, scores.ViolenceScore, scores.AbuseScore))
+					reason, resp.Scores.NSFW, resp.Scores.Porn, resp.Scores.Violence, resp.Scores.Abuse))
 			return
 		}
 	}

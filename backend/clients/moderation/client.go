@@ -28,11 +28,11 @@ func New(baseURL string) *Client {
 	}
 }
 
-// --- Text ---
+// --- Common response fields ---
 
 type TextScores struct {
-	Toxic          float64 `json:"toxicity"`
-	SevereToxic    float64 `json:"severe_toxicity"`
+	Toxicity       float64 `json:"toxicity"`
+	SevereToxicity float64 `json:"severe_toxicity"`
 	Obscene        float64 `json:"obscene"`
 	Threat         float64 `json:"threat"`
 	Insult         float64 `json:"insult"`
@@ -40,7 +40,46 @@ type TextScores struct {
 	SexualExplicit float64 `json:"sexual_explicit"`
 }
 
-func (c *Client) CheckText(ctx context.Context, text string) (*TextScores, error) {
+type TextResponse struct {
+	Action      string     `json:"action"`
+	Blocked     bool       `json:"blocked"`
+	NeedsReview bool       `json:"needs_review"`
+	Reason      *string    `json:"reason"`
+	Confidence  float64    `json:"confidence"`
+	Scores      TextScores `json:"scores"`
+}
+
+type ImageScores struct {
+	NSFW     float64 `json:"nsfw"`
+	Safe     float64 `json:"safe"`
+	Medical  float64 `json:"medical"`
+	Porn     float64 `json:"porn"`
+	Violence float64 `json:"violence"`
+	Abuse    float64 `json:"abuse"`
+}
+
+type ImageMeta struct {
+	EffectiveNSFW              float64 `json:"effective_nsfw"`
+	EffectiveViolenceThreshold float64 `json:"effective_violence_threshold"`
+	IsPetContent               bool    `json:"is_pet_content"`
+	IsMedicalContext           bool    `json:"is_medical_context"`
+	IsLikelySafe               bool    `json:"is_likely_safe"`
+	MaxClipScore               float64 `json:"max_clip_score"`
+}
+
+type ImageResponse struct {
+	Action      string      `json:"action"`
+	Blocked     bool        `json:"blocked"`
+	NeedsReview bool        `json:"needs_review"`
+	Reason      *string     `json:"reason"`
+	Confidence  float64     `json:"confidence"`
+	Scores      ImageScores `json:"scores"`
+	Meta        ImageMeta   `json:"meta"`
+}
+
+// --- Text ---
+
+func (c *Client) CheckText(ctx context.Context, text string) (*TextResponse, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -74,40 +113,24 @@ func (c *Client) CheckText(ctx context.Context, text string) (*TextScores, error
 		return nil, fmt.Errorf("moderation: %d: %s", resp.StatusCode, string(b))
 	}
 
-	var scores TextScores
-	if err := json.NewDecoder(resp.Body).Decode(&scores); err != nil {
+	var result TextResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("moderation: decode: %w", err)
 	}
 
-	// Определяем результат
-	result := "pass"
-	if scores.Toxic > 0.8 || scores.Obscene > 0.8 || scores.Threat > 0.8 {
-		result = "block"
-		reason := "toxic"
-		if scores.Obscene > scores.Toxic {
-			reason = "obscene"
-		}
-		if scores.Threat > scores.Obscene && scores.Threat > scores.Toxic {
-			reason = "threat"
+	metrics.ModerationRequestsTotal.WithLabelValues("text", result.Action).Inc()
+	if result.Blocked {
+		reason := "unknown"
+		if result.Reason != nil {
+			reason = *result.Reason
 		}
 		metrics.ModerationBlockedTotal.WithLabelValues("text", reason).Inc()
 	}
 
-	metrics.ModerationRequestsTotal.WithLabelValues("text", result).Inc()
-
-	return &scores, nil
+	return &result, nil
 }
 
 // --- Image ---
-
-type ImageScores struct {
-	NSFWScore     float64 `json:"nsfw_score"`
-	PornScore     float64 `json:"porn_score"`
-	ViolenceScore float64 `json:"violence_score"`
-	AbuseScore    float64 `json:"abuse_score"`
-	Block         bool    `json:"block"`
-	Reason        *string `json:"reason"`
-}
 
 func detectImageContentType(data []byte) string {
 	ct := http.DetectContentType(data)
@@ -117,7 +140,7 @@ func detectImageContentType(data []byte) string {
 	return ct
 }
 
-func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename string) (*ImageScores, error) {
+func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename string) (*ImageResponse, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -163,22 +186,19 @@ func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename str
 		return nil, fmt.Errorf("moderation: %d: %s", resp.StatusCode, string(b))
 	}
 
-	var scores ImageScores
-	if err := json.NewDecoder(resp.Body).Decode(&scores); err != nil {
+	var result ImageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("moderation: decode: %w", err)
 	}
 
-	result := "pass"
-	if scores.Block {
-		result = "block"
-		reason := "nsfw"
-		if scores.Reason != nil {
-			reason = *scores.Reason
+	metrics.ModerationRequestsTotal.WithLabelValues("image", result.Action).Inc()
+	if result.Blocked {
+		reason := "unknown"
+		if result.Reason != nil {
+			reason = *result.Reason
 		}
 		metrics.ModerationBlockedTotal.WithLabelValues("image", reason).Inc()
 	}
 
-	metrics.ModerationRequestsTotal.WithLabelValues("image", result).Inc()
-
-	return &scores, nil
+	return &result, nil
 }

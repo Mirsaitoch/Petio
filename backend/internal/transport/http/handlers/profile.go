@@ -12,17 +12,15 @@ import (
 )
 
 type ProfileHandler struct {
-	repo       repository.UserRepository
-	mod        *moderation.Client
-	thresholds moderation.Thresholds
+	repo repository.UserRepository
+	mod  *moderation.Client
 }
 
 func NewProfileHandler(
 	repo repository.UserRepository,
 	mod *moderation.Client,
-	thresholds moderation.Thresholds,
 ) *ProfileHandler {
-	return &ProfileHandler{repo: repo, mod: mod, thresholds: thresholds}
+	return &ProfileHandler{repo: repo, mod: mod}
 }
 
 // Get godoc
@@ -83,18 +81,21 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 			if text == "" {
 				continue
 			}
-			scores, err := h.mod.CheckText(r.Context(), text)
+			resp, err := h.mod.CheckText(r.Context(), text)
 			if err != nil {
 				log.Printf("WARNING: profile text moderation failed: %v", err)
 				continue
 			}
-			if scores == nil {
+			if resp == nil {
 				continue
 			}
-			d := h.thresholds.Evaluate(scores)
-			if d.Block {
+			if resp.Blocked {
+				reason := "unknown"
+				if resp.Reason != nil {
+					reason = *resp.Reason
+				}
 				jsonError(w, http.StatusUnprocessableEntity,
-					fmt.Sprintf("text rejected: %s", d.Reason))
+					fmt.Sprintf("text rejected: %s", reason))
 				return
 			}
 		}

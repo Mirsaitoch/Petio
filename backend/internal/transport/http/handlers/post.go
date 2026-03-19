@@ -18,23 +18,20 @@ import (
 )
 
 type PostHandler struct {
-	repo       repository.PostRepository
-	userRepo   repository.UserRepository
-	mod        *moderation.Client
-	thresholds moderation.Thresholds
+	repo     repository.PostRepository
+	userRepo repository.UserRepository
+	mod      *moderation.Client
 }
 
 func NewPostHandler(
 	repo repository.PostRepository,
 	userRepo repository.UserRepository,
 	mod *moderation.Client,
-	thresholds moderation.Thresholds,
 ) *PostHandler {
 	return &PostHandler{
-		repo:       repo,
-		userRepo:   userRepo,
-		mod:        mod,
-		thresholds: thresholds,
+		repo:     repo,
+		userRepo: userRepo,
+		mod:      mod,
 	}
 }
 
@@ -46,20 +43,20 @@ func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
 		if t == "" {
 			continue
 		}
-		scores, err := h.mod.CheckText(r.Context(), t)
+		resp, err := h.mod.CheckText(r.Context(), t)
 		if err != nil {
 			log.Printf("WARNING: text moderation failed: %v", err)
 			continue
 		}
-		if scores == nil {
+		if resp == nil {
 			continue
 		}
-		l, _ := json.MarshalIndent(scores, "", "  ")
-		log.Println(string(l))
-		d := h.thresholds.Evaluate(scores)
-		if d.Block {
-			return fmt.Errorf("text rejected: %s (toxic=%.2f, obscene=%.2f, threat=%.2f)",
-				d.Reason, scores.Toxic, scores.Obscene, scores.Threat)
+		if resp.Blocked {
+			reason := "unknown"
+			if resp.Reason != nil {
+				reason = *resp.Reason
+			}
+			return fmt.Errorf("text rejected: %s", reason)
 		}
 	}
 	return nil

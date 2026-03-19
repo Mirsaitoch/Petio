@@ -9,13 +9,15 @@ import SwiftUI
 
 extension DiaryTag {
     static let defaults: [DiaryTag] = [
-        DiaryTag(id: "default_vet",      name: "Визит к ветеринару", colorHex: "#2196F3", isDefault: true),
-        DiaryTag(id: "default_vaccine",  name: "Прививка",            colorHex: "#4CAF50", isDefault: true),
-        DiaryTag(id: "default_illness",  name: "Болезнь",             colorHex: "#F44336", isDefault: true),
-        DiaryTag(id: "default_mood",     name: "Хорошее настроение",  colorHex: "#FFC107", isDefault: true),
-        DiaryTag(id: "default_appetite", name: "Плохой аппетит",      colorHex: "#FF9800", isDefault: true),
-        DiaryTag(id: "default_activity", name: "Активность",          colorHex: "#00BCD4", isDefault: true),
-        DiaryTag(id: "default_grooming", name: "Груминг",             colorHex: "#9C27B0", isDefault: true),
+        DiaryTag(id: "default_vet",       name: "Визит к ветеринару", colorHex: "#2196F3", isDefault: true),
+        DiaryTag(id: "default_meds",      name: "Лекарства",          colorHex: "#4CAF50", isDefault: true),
+        DiaryTag(id: "default_illness",   name: "Болезнь",            colorHex: "#F44336", isDefault: true),
+        DiaryTag(id: "default_symptoms",  name: "Симптомы",           colorHex: "#FF9800", isDefault: true),
+        DiaryTag(id: "default_nutrition", name: "Питание",            colorHex: "#8BC34A", isDefault: true),
+        DiaryTag(id: "default_activity",  name: "Активность",         colorHex: "#00BCD4", isDefault: true),
+        DiaryTag(id: "default_digestion", name: "Пищеварение",        colorHex: "#795548", isDefault: true),
+        DiaryTag(id: "default_mood",      name: "Настроение",         colorHex: "#FFC107", isDefault: true),
+        DiaryTag(id: "default_pregnancy", name: "Беременность",       colorHex: "#E91E63", isDefault: true),
     ]
 }
 

@@ -5,12 +5,12 @@ import SwiftUI
 struct DiaryTagTests {
 
     @Test func defaultTagsCount() {
-        #expect(DiaryTag.defaults.count == 7)
+        #expect(DiaryTag.defaults.count == 9)
     }
 
     @Test func defaultTagsAreUnique() {
         let ids = DiaryTag.defaults.map(\.id)
-        #expect(Set(ids).count == 7)
+        #expect(Set(ids).count == 9)
     }
 
     @Test func colorHexRoundTrip() {

@@ -1,0 +1,43 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      templates:
+        # Собираем логи только от backend-контейнера
+        - condition:
+            contains:
+              docker.container.name: "backend"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              # zap пишет JSON — парсим
+              json.keys_under_root: true
+              json.overwrite_keys: true
+              json.add_error_key: true
+
+processors:
+  # Убираем весь мусор Docker — оставляем только полезные поля от zap
+  - drop_fields:
+      fields:
+        - host
+        - agent
+        - ecs
+        - input
+        - log
+        - stream
+        - docker
+        - container
+      ignore_missing: true
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "petio-logs-%{+yyyy.MM.dd}"
+
+# Шаблон индекса
+setup.ilm.enabled: false
+setup.template.name: "petio-logs"
+setup.template.pattern: "petio-logs-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0

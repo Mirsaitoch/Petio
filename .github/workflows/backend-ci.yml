@@ -1,0 +1,86 @@
+# Backend CI Pipeline
+# Runs on every push/PR affecting backend/ files
+# 1) go build + go vet
+# 2) Integration tests against real PostgreSQL
+
+name: Backend CI
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+jobs:
+  build:
+    name: Build & Vet
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: backend/go.sum
+
+      - name: Build
+        working-directory: backend
+        run: go build ./...
+
+      - name: Vet
+        working-directory: backend
+        run: go vet ./...
+
+  test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: petio_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/petio_test?sslmode=disable
+      JWT_SECRET: ci-test-secret
+      S3_BUCKET: ci-test-bucket
+      AWS_ACCESS_KEY_ID: ci-test-key
+      AWS_SECRET_ACCESS_KEY: ci-test-secret-key
+      S3_ENDPOINT: http://localhost:9000
+      S3_BASE_URL: http://localhost:9000/ci-test-bucket
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: backend/go.sum
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            sleep 1
+          done
+
+      - name: Run integration tests
+        working-directory: backend
+        run: go test ./tests/ -v -count=1 -timeout 120s

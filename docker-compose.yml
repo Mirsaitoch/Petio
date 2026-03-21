@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17
     environment:
       POSTGRES_DB: petio
       POSTGRES_USER: postgres
@@ -34,78 +34,67 @@ services:
       - prometheus
 
   backend:
-    build: .
+    build: ./backend
     ports:
       - "8080:8080"
+    env_file:
+      - ./backend/.env
     environment:
+      APP_ENV: production
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/petio?sslmode=disable
-      YANDEX_AI_API_KEY: ${YANDEX_AI_API_KEY}
-      YANDEX_AI_FOLDER_ID: ${YANDEX_AI_FOLDER_ID}
-      JWT_SECRET: ${JWT_SECRET}
-      S3_BUCKET: ${S3_BUCKET}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MODERATION_URL: http://moderation_api:8000
     depends_on:
       - postgres
       - prometheus
+    labels:
+      co.elastic.logs/enabled: "true"
+      co.elastic.logs/json.keys_under_root: "true"
+      co.elastic.logs/json.overwrite_keys: "true"
 
-  triton:
-    build:
-      context: ./triton
-      dockerfile: Dockerfile
+  # ── ELK Stack ──
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
-      - "8010:8000"
-      - "8011:8001"
-      - "8012:8002"
-    env_file:
-      - ./triton/.env
+      - "9200:9200"
     volumes:
-      - triton_models:/models
+      - es_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 360s
+      start_period: 30s
 
-
-  moderation_api:
-    build:
-      context: ./moderation_service
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+  kibana:
+    image: kibana:8.13.0
     environment:
-      TRITON_URL: "triton:8001"
-      TRITON_HTTP_URL: "http://triton:8000"
-      TOKENIZERS_PATH: "/app/tokenizers"
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
     depends_on:
-      triton:
+      elasticsearch:
         condition: service_healthy
 
-#  app:
-#    build:
-#     gi context: ./backend
-#      dockerfile: Dockerfile
-#    ports:
-#      - "8080:8080"
-#    env_file:
-#      - ./backend/.env
-#    environment:
-#      HTTP_ADDR: ":8080"
-#      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/petio?sslmode=disable"
-#      JWT_SECRET: "petio-jwt-secret-change-in-prod"
-#      S3_REGION: "ru-central1"
-#      S3_ENDPOINT: "https://storage.yandexcloud.net"
-#      MODERATION_API_URL: "http://moderation_api:8000"
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#      moderation_api:
-#        condition: service_started
+  filebeat:
+    image: elastic/filebeat:8.13.0
+    user: root
+    command: filebeat -e --strict.perms=false
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-  triton_models:
   prometheus_data:
   grafana_data:
+  es_data:
+  filebeat_data:

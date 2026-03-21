@@ -2,21 +2,23 @@ package email
 
 import (
 	"fmt"
-	"log"
 	"net/smtp"
+
+	"go.uber.org/zap"
 
 	"petio/backend/internal/config"
 )
 
 type Sender struct {
 	cfg config.SMTPConfig
+	log *zap.Logger
 }
 
-func NewSender(cfg config.SMTPConfig) *Sender {
+func NewSender(cfg config.SMTPConfig, log *zap.Logger) *Sender {
 	if !cfg.Configured() {
 		return nil
 	}
-	return &Sender{cfg: cfg}
+	return &Sender{cfg: cfg, log: log}
 }
 
 func (s *Sender) Send(to, subject, htmlBody string) error {
@@ -33,8 +35,13 @@ func (s *Sender) Send(to, subject, htmlBody string) error {
 	)
 
 	if err := smtp.SendMail(addr, auth, s.cfg.From, []string{to}, []byte(msg)); err != nil {
+		s.log.Error("failed to send email",
+			zap.String("to", to),
+			zap.String("subject", subject),
+			zap.Error(err),
+		)
 		return fmt.Errorf("smtp send: %w", err)
 	}
-	log.Printf("email sent to %s: %s", to, subject)
+	s.log.Info("email sent", zap.String("to", to), zap.String("subject", subject))
 	return nil
 }

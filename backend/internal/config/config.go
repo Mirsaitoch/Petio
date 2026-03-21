@@ -1,13 +1,13 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -70,7 +70,7 @@ type JWTConfig struct {
 	Expiration int
 }
 
-func Load() *Config {
+func Load(log *zap.Logger) *Config {
 	// Загружаем .env из нескольких мест (последний загруженный перезаписывает переменные)
 	paths := []string{".env", "backend/.env"}
 	if execPath, err := os.Executable(); err == nil {
@@ -83,10 +83,9 @@ func Load() *Config {
 		}
 	}
 	if loaded != "" {
-		log.Printf("config: loaded .env from %s (cwd: %s)", loaded, mustGetwd())
+		log.Info("loaded .env", zap.String("path", loaded), zap.String("cwd", mustGetwd()))
 	} else {
-		cwd := mustGetwd()
-		log.Printf("config: no .env file (cwd: %s); using process environment (in Docker: env_file / environment)", cwd)
+		log.Info("no .env file, using process environment", zap.String("cwd", mustGetwd()))
 	}
 
 	return &Config{

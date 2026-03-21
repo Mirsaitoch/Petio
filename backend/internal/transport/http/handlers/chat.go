@@ -41,7 +41,10 @@ func (h *ChatHandler) CreateChat(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err.Error() != "EOF" {
+		jsonError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
 	chat, err := h.service.CreateChat(r.Context(), userID, body.Title)
 	if err != nil {

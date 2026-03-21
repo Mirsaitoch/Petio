@@ -3,15 +3,16 @@ package handlers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
 	"petio/backend/internal/metrics"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"petio/backend/clients/s3"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -87,6 +88,9 @@ func (h *UploadHandler) UploadPostImage(w http.ResponseWriter, r *http.Request) 
 
 func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, prefix string) {
 	start := time.Now()
+	l := logger.FromCtx(r.Context()).With(
+		zap.String("prefix", prefix),
+	)
 
 	if h.s3 == nil {
 		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
@@ -94,10 +98,6 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 		return
 	}
 
-	if h.s3 == nil {
-		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
-		return
-	}
 	if r.ContentLength > maxUploadSize {
 		jsonError(w, http.StatusRequestEntityTooLarge, "file too large (max 10 MB)")
 		return
@@ -139,16 +139,38 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	if h.mod != nil {
 		resp, err := h.mod.CheckImage(r.Context(), body, header.Filename)
 		if err != nil {
-			log.Printf("WARNING: image moderation failed: %v", err)
-		} else if resp != nil && resp.Blocked {
-			reason := "inappropriate_content"
-			if resp.Reason != nil {
-				reason = *resp.Reason
+			l.Warn("image moderation failed",
+				zap.String("filename", header.Filename),
+				zap.Int("file_size", fileSize),
+				zap.Error(err),
+			)
+		} else if resp != nil {
+			l.Info("image moderation result",
+				zap.String("filename", header.Filename),
+				zap.Int("file_size", fileSize),
+				zap.String("action", resp.Action),
+				zap.Bool("blocked", resp.Blocked),
+				zap.Bool("needs_review", resp.NeedsReview),
+				zap.Float64("nsfw", resp.Scores.NSFW),
+				zap.Float64("porn", resp.Scores.Porn),
+				zap.Float64("violence", resp.Scores.Violence),
+				zap.Float64("abuse", resp.Scores.Abuse),
+			)
+			if resp.Blocked {
+				reason := "inappropriate_content"
+				if resp.Reason != nil {
+					reason = *resp.Reason
+				}
+				l.Warn("image blocked",
+					zap.String("filename", header.Filename),
+					zap.String("reason", reason),
+					zap.Float64("confidence", resp.Confidence),
+				)
+				jsonError(w, http.StatusUnprocessableEntity,
+					fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
+						reason, resp.Scores.NSFW, resp.Scores.Porn, resp.Scores.Violence, resp.Scores.Abuse))
+				return
 			}
-			jsonError(w, http.StatusUnprocessableEntity,
-				fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
-					reason, resp.Scores.NSFW, resp.Scores.Porn, resp.Scores.Violence, resp.Scores.Abuse))
-			return
 		}
 	}
 
@@ -169,6 +191,10 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	duration := time.Since(start).Seconds()
 
 	if err != nil {
+		l.Error("s3 upload failed",
+			zap.String("key", key),
+			zap.Error(err),
+		)
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		metrics.S3UploadsTotal.WithLabelValues(prefix, "error").Inc()
 		return
@@ -176,6 +202,12 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	metrics.S3UploadsTotal.WithLabelValues(prefix, "success").Inc()
 	metrics.S3UploadSize.WithLabelValues(prefix).Observe(float64(fileSize))
 	metrics.S3UploadDuration.WithLabelValues(prefix).Observe(duration)
+
+	l.Info("file uploaded",
+		zap.String("key", key),
+		zap.Int("file_size", fileSize),
+		zap.Float64("duration_s", duration),
+	)
 
 	jsonResponse(w, http.StatusCreated, map[string]string{"url": urlStr})
 }

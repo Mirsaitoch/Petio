@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"petio/backend/clients/yandexai"
 	"time"
+
+	"go.uber.org/zap"
 
 	"petio/backend/clients/kserve"
 	"petio/backend/clients/moderation"
@@ -26,9 +27,10 @@ type App struct {
 	db     *sql.DB
 	kserve *kserve.Client
 	server *http.Server
+	log    *zap.Logger
 }
 
-func New(cfg *config.Config) (*App, error) {
+func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 	db, err := postgres.New(cfg.DB.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("db: %w", err)
@@ -66,10 +68,11 @@ func New(cfg *config.Config) (*App, error) {
 	// ── Moderation client (nil if URL empty) ──
 	modClient := moderation.New(cfg.Moderation.BaseURL)
 	if modClient != nil {
-		log.Printf("moderation: enabled at %s", cfg.Moderation.BaseURL)
+		log.Info("moderation enabled", zap.String("url", cfg.Moderation.BaseURL))
 	} else {
-		log.Println("moderation: disabled (MODERATION_URL not set)")
+		log.Warn("moderation disabled (MODERATION_URL not set)")
 	}
+
 	var aiClient *yandexai.Client
 	if cfg.YandexAI.APIKey != "" && cfg.YandexAI.FolderID != "" {
 		aiClient = yandexai.New(yandexai.Config{
@@ -77,9 +80,9 @@ func New(cfg *config.Config) (*App, error) {
 			FolderID: cfg.YandexAI.FolderID,
 			BaseURL:  cfg.YandexAI.BaseURL,
 		})
-		log.Println("yandex ai: enabled")
+		log.Info("yandex ai enabled")
 	} else {
-		log.Println("yandex ai: disabled (using fallback responses)")
+		log.Warn("yandex ai disabled (using fallback responses)")
 	}
 
 	petRepo := postgres.NewPetRepository(db)
@@ -95,21 +98,21 @@ func New(cfg *config.Config) (*App, error) {
 	shelterRepo := postgres.NewShelterRepository(db)
 	chatRepo := postgres.NewChatRepository(db)
 
-	emailSender := email.NewSender(cfg.SMTP)
+	emailSender := email.NewSender(cfg.SMTP, log.Named("email"))
 	if emailSender != nil {
-		log.Printf("smtp: enabled (host=%s)", cfg.SMTP.Host)
+		log.Info("smtp enabled", zap.String("host", cfg.SMTP.Host))
 	} else {
-		log.Println("smtp: disabled (SMTP_HOST not set) — codes will be logged")
+		log.Warn("smtp disabled — verification codes will be logged")
 	}
 
-	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, resetTokenRepo, emailVerifyRepo, emailSender, cfg.JWT.Secret, cfg.JWT.Expiration)
+	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, resetTokenRepo, emailVerifyRepo, emailSender, cfg.JWT.Secret, cfg.JWT.Expiration, log.Named("auth"))
 	petHandler := handlers.NewPetHandler(petRepo)
 	reminderHandler := handlers.NewReminderHandler(reminderRepo)
 	weightHandler := handlers.NewWeightHandler(weightRepo)
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
 	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient)
-	chatService := service.NewChatService(aiClient, chatRepo)
+	chatService := service.NewChatService(aiClient, chatRepo, log.Named("chat"))
 	chatHandler := handlers.NewChatHandler(chatService)
 	profileHandler := handlers.NewProfileHandler(userRepo, modClient)
 	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)
@@ -119,13 +122,16 @@ func New(cfg *config.Config) (*App, error) {
 		authHandler, petHandler, reminderHandler, weightHandler,
 		diaryHandler, articleHandler, postHandler, chatHandler,
 		profileHandler, uploadHandler, shelterHandler,
-		cfg.JWT.Secret,
+		cfg.JWT.Secret, log,
 	)
+
+	log.Info("server starting", zap.String("addr", cfg.HTTPAddr))
 
 	return &App{
 		cfg:    cfg,
 		db:     db,
 		kserve: kc,
+		log:    log,
 		server: &http.Server{
 			Addr:         cfg.HTTPAddr,
 			Handler:      router,
@@ -137,6 +143,11 @@ func New(cfg *config.Config) (*App, error) {
 
 func (a *App) Run() error {
 	return a.server.ListenAndServe()
+}
+
+// Handler возвращает HTTP handler для тестов (httptest.NewServer).
+func (a *App) Handler() http.Handler {
+	return a.server.Handler
 }
 
 func (a *App) Shutdown(ctx context.Context) error {

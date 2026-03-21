@@ -8,6 +8,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.uber.org/zap"
 
 	"petio/backend/internal/transport/http/handlers"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -26,11 +27,12 @@ func NewRouter(
 	upload *handlers.UploadHandler,
 	shelter *handlers.ShelterHandler,
 	jwtSecret string,
+	log *zap.Logger,
 ) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.RequestID)
-	r.Use(middleware.RequestLog)
+	r.Use(middleware.RequestLog(log.Named("http")))
 	r.Use(middleware.PrometheusMetrics)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(corsMiddleware())

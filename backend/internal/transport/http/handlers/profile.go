@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
+
+	"go.uber.org/zap"
 
 	"petio/backend/internal/repository"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -77,13 +79,14 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// ── text moderation for profile fields ──
 	if h.mod != nil {
+		l := logger.FromCtx(r.Context())
 		for _, text := range []string{p.Bio, p.Name, p.Username} {
 			if text == "" {
 				continue
 			}
 			resp, err := h.mod.CheckText(r.Context(), text)
 			if err != nil {
-				log.Printf("WARNING: profile text moderation failed: %v", err)
+				l.Warn("profile text moderation failed", zap.Error(err))
 				continue
 			}
 			if resp == nil {
@@ -94,6 +97,10 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 				if resp.Reason != nil {
 					reason = *resp.Reason
 				}
+				l.Warn("profile text blocked",
+					zap.String("reason", reason),
+					zap.Float64("confidence", resp.Confidence),
+				)
 				jsonError(w, http.StatusUnprocessableEntity,
 					fmt.Sprintf("text rejected: %s", reason))
 				return

@@ -8,6 +8,7 @@ import (
 
 	"petio/backend/internal/metrics"
 
+	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
@@ -25,7 +26,7 @@ func PrometheusMetrics(next http.Handler) http.Handler {
 		// Собираем метрики
 		duration := time.Since(start).Seconds()
 		status := strconv.Itoa(ww.Status())
-		endpoint := normalizeEndpoint(r.URL.Path)
+		endpoint := normalizeEndpoint(r)
 
 		metrics.HTTPRequestsTotal.WithLabelValues(
 			r.Method,
@@ -46,21 +47,11 @@ func PrometheusMetrics(next http.Handler) http.Handler {
 	})
 }
 
-// normalizeEndpoint заменяет параметры пути на placeholders
-// Например: /v1/chats/abc-123/messages -> /v1/chats/{id}/messages
-func normalizeEndpoint(path string) string {
-	// Простая нормализация для основных роутов
-	// В продакшене лучше использовать chi.RoutePattern(r)
-	switch {
-	case len(path) > 10 && path[:10] == "/v1/chats/":
-		if len(path) > 46 { // UUID length
-			return "/v1/chats/{id}/messages"
-		}
-		return "/v1/chats/{id}"
-	case len(path) > 9 && path[:9] == "/v1/pets/":
-		return "/v1/pets/{id}"
-	case len(path) > 10 && path[:10] == "/v1/posts/":
-		return "/v1/posts/{id}"
+// normalizeEndpoint uses chi's route pattern for accurate endpoint labeling.
+func normalizeEndpoint(r *http.Request) string {
+	rctx := chi.RouteContext(r.Context())
+	if rctx != nil && rctx.RoutePattern() != "" {
+		return rctx.RoutePattern()
 	}
-	return path
+	return r.URL.Path
 }

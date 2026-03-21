@@ -4,10 +4,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
+	"petio/backend/internal/logger"
 	"petio/backend/internal/metrics"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 
 	"petio/backend/clients/yandexai"
 	"petio/backend/internal/domain"
@@ -17,12 +19,14 @@ import (
 type ChatService struct {
 	aiClient *yandexai.Client
 	chatRepo *postgres.ChatRepository
+	log      *zap.Logger
 }
 
-func NewChatService(aiClient *yandexai.Client, chatRepo *postgres.ChatRepository) *ChatService {
+func NewChatService(aiClient *yandexai.Client, chatRepo *postgres.ChatRepository, log *zap.Logger) *ChatService {
 	return &ChatService{
 		aiClient: aiClient,
 		chatRepo: chatRepo,
+		log:      log,
 	}
 }
 
@@ -41,7 +45,10 @@ func (s *ChatService) CreateChat(ctx context.Context, userID, title string) (*do
 	}
 	chat, err := s.chatRepo.CreateChat(ctx, userID, title)
 	if err == nil {
-		// Обновляем gauge активных чатов
+		logger.FromCtx(ctx).Info("chat created",
+			zap.String("chat_id", chat.ID),
+			zap.String("title", title),
+		)
 		s.updateActiveChatGauge(ctx, userID)
 	}
 	return chat, err
@@ -66,6 +73,7 @@ func (s *ChatService) GetMessages(ctx context.Context, chatID string, limit, off
 func (s *ChatService) DeleteChat(ctx context.Context, chatID, userID string) error {
 	err := s.chatRepo.DeleteChat(ctx, chatID, userID)
 	if err == nil {
+		logger.FromCtx(ctx).Info("chat deleted", zap.String("chat_id", chatID))
 		s.updateActiveChatGauge(ctx, userID)
 	}
 	return err
@@ -81,12 +89,15 @@ func (s *ChatService) UpdateChatTitle(ctx context.Context, chatID, userID, title
 
 // SendMessage отправляет сообщение и получает ответ от AI
 func (s *ChatService) SendMessage(ctx context.Context, chatID, userID, text string) (*domain.ChatMessage, error) {
+	l := logger.FromCtx(ctx).With(zap.String("chat_id", chatID))
+
 	// Проверяем, что чат принадлежит пользователю
 	chat, err := s.chatRepo.GetChatByID(ctx, chatID, userID)
 	if err != nil {
 		return nil, err
 	}
 	if chat == nil {
+		l.Warn("chat not found")
 		return nil, fmt.Errorf("chat not found")
 	}
 
@@ -105,16 +116,16 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID, userID, text stri
 	}
 
 	// Получаем контекст (последние N сообщений)
-	context, err := s.chatRepo.GetContext(ctx, chatID, DefaultContextSize)
+	chatContext, err := s.chatRepo.GetContext(ctx, chatID, DefaultContextSize)
 	if err != nil {
-		log.Printf("WARN: failed to load context: %v", err)
-		context = []domain.ChatMessage{*userMsg}
+		l.Warn("failed to load chat context", zap.Error(err))
+		chatContext = []domain.ChatMessage{*userMsg}
 	}
 
 	// Получаем ответ от AI
-	assistantMsg, err := s.getAIResponse(ctx, chatID, text, context)
+	assistantMsg, err := s.getAIResponse(ctx, chatID, text, chatContext)
 	if err != nil {
-		log.Printf("ERROR: AI response failed: %v", err)
+		l.Error("ai response failed, using fallback", zap.Error(err))
 		// Fallback
 		metrics.AIRequestsTotal.WithLabelValues("fallback", "", "fallback").Inc()
 		assistantMsg = s.fallbackMessage(chatID, text)
@@ -134,13 +145,22 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID, userID, text stri
 		_ = s.chatRepo.UpdateChatTitle(ctx, chatID, userID, title)
 	}
 
+	l.Info("message processed",
+		zap.String("model", assistantMsg.ModelUsed),
+		zap.String("question_type", assistantMsg.QuestionType),
+		zap.Int("input_tokens", assistantMsg.InputTokens),
+		zap.Int("output_tokens", assistantMsg.OutputTokens),
+	)
+
 	return assistantMsg, nil
 }
 
-func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, context []domain.ChatMessage) (*domain.ChatMessage, error) {
+func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, chatContext []domain.ChatMessage) (*domain.ChatMessage, error) {
 	if s.aiClient == nil {
 		return s.fallbackMessage(chatID, text), nil
 	}
+
+	l := logger.FromCtx(ctx).With(zap.String("chat_id", chatID))
 
 	// 1. Классифицируем вопрос
 	questionType, classifierUsage, err := s.aiClient.ClassifyQuestion(ctx, text)
@@ -149,8 +169,11 @@ func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, co
 	}
 
 	questionType = strings.TrimSpace(strings.ToLower(questionType))
-	log.Printf("Question classified as: %s (tokens: %d in, %d out)",
-		questionType, classifierUsage.InputTokens, classifierUsage.OutputTokens)
+	l.Info("question classified",
+		zap.String("type", questionType),
+		zap.Int("classifier_input_tokens", classifierUsage.InputTokens),
+		zap.Int("classifier_output_tokens", classifierUsage.OutputTokens),
+	)
 
 	// 2. Обрабатываем spam отдельно
 	if questionType == "spam" {

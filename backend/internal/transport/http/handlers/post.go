@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"petio/backend/internal/domain"
 	"petio/backend/internal/repository"
@@ -39,23 +40,33 @@ func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
 	if h.mod == nil {
 		return nil
 	}
+	l := logger.FromCtx(r.Context())
 	for _, t := range texts {
 		if t == "" {
 			continue
 		}
 		resp, err := h.mod.CheckText(r.Context(), t)
 		if err != nil {
-			log.Printf("WARNING: text moderation failed: %v", err)
+			l.Warn("text moderation failed", zap.Error(err))
 			continue
 		}
 		if resp == nil {
 			continue
 		}
+		l.Info("text moderation result",
+			zap.String("action", resp.Action),
+			zap.Bool("blocked", resp.Blocked),
+			zap.Float64("confidence", resp.Confidence),
+		)
 		if resp.Blocked {
 			reason := "unknown"
 			if resp.Reason != nil {
 				reason = *resp.Reason
 			}
+			l.Warn("text blocked",
+				zap.String("reason", reason),
+				zap.Float64("confidence", resp.Confidence),
+			)
 			return fmt.Errorf("text rejected: %s", reason)
 		}
 	}

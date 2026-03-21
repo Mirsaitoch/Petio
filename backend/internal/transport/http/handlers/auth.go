@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 	"net/http"
 	"petio/backend/internal/email"
+	"petio/backend/internal/logger"
 	"petio/backend/internal/metrics"
 	"petio/backend/internal/repository/postgres"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
 	"petio/backend/internal/repository"
@@ -31,6 +32,7 @@ type AuthHandler struct {
 	emailSender *email.Sender
 	secret      string
 	expHrs      int
+	log         *zap.Logger
 }
 
 func NewAuthHandler(
@@ -41,6 +43,7 @@ func NewAuthHandler(
 	emailSender *email.Sender,
 	secret string,
 	expHrs int,
+	log *zap.Logger,
 ) *AuthHandler {
 	return &AuthHandler{
 		repo:        repo,
@@ -50,6 +53,7 @@ func NewAuthHandler(
 		emailSender: emailSender,
 		secret:      secret,
 		expHrs:      expHrs,
+		log:         log,
 	}
 }
 
@@ -65,6 +69,8 @@ func NewAuthHandler(
 // @Failure      401 {object} map[string]string "error"
 // @Router       /v1/auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -75,10 +81,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := h.repo.GetByEmail(r.Context(), body.Email)
 	if err != nil || u == nil {
+		l.Warn("login failed: user not found", zap.String("email", body.Email))
 		jsonError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(body.Password)); err != nil {
+		l.Warn("login failed: wrong password", zap.String("email", body.Email), zap.String("user_id", u.ID))
 		jsonError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -93,6 +101,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	l.Info("user logged in", zap.String("user_id", u.ID), zap.String("method", "email"))
 
 	jsonResponse(w, http.StatusOK, map[string]string{
 		"token":        token,
@@ -110,6 +120,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // @Failure      400,409 {object} map[string]string "error"
 // @Router       /v1/auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -124,6 +136,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	existing, _ := h.repo.GetByEmail(r.Context(), body.Email)
 	if existing != nil {
+		l.Warn("register failed: email exists", zap.String("email", body.Email))
 		jsonError(w, http.StatusConflict, "email already exists")
 		return
 	}
@@ -157,6 +170,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	l.Info("user registered", zap.String("user_id", u.ID), zap.String("method", "email"))
+
 	jsonResponse(w, http.StatusOK, map[string]string{
 		"token":        token,
 		"refreshToken": refreshToken,
@@ -185,6 +200,8 @@ func (h *AuthHandler) issueToken(userID string) (string, error) {
 // @Failure      401 {object} map[string]string "error"
 // @Router       /v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
@@ -196,12 +213,14 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	tokenHash := hashToken(body.RefreshToken)
 	userID, expiresAt, err := h.refreshRepo.GetUserIDByTokenHash(r.Context(), tokenHash)
 	if err != nil || userID == "" {
+		l.Warn("refresh failed: invalid token")
 		jsonError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
 
 	if time.Now().After(expiresAt) {
 		_ = h.refreshRepo.DeleteByTokenHash(r.Context(), tokenHash)
+		l.Warn("refresh failed: token expired", zap.String("user_id", userID))
 		jsonError(w, http.StatusUnauthorized, "refresh token expired")
 		return
 	}
@@ -219,6 +238,8 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	l.Info("token refreshed", zap.String("user_id", userID))
 
 	jsonResponse(w, http.StatusOK, map[string]string{
 		"token":        token,
@@ -255,6 +276,8 @@ func hashToken(token string) string {
 // @Failure      400 {object} map[string]string "error"
 // @Router       /v1/auth/device [post]
 func (h *AuthHandler) LoginByDevice(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		DeviceID string `json:"device_id"`
 	}
@@ -299,6 +322,12 @@ func (h *AuthHandler) LoginByDevice(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	l.Info("device auth",
+		zap.String("user_id", userID),
+		zap.String("device_id", body.DeviceID),
+		zap.Bool("is_new", isNew),
+	)
 
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"token":        token,
@@ -349,6 +378,8 @@ func (h *AuthHandler) ListDeviceAccounts(w http.ResponseWriter, r *http.Request)
 // @Failure      400,403 {object} map[string]string "error"
 // @Router       /v1/auth/device/switch [post]
 func (h *AuthHandler) SwitchDeviceAccount(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		DeviceID string `json:"device_id"`
 		UserID   string `json:"user_id"`
@@ -364,6 +395,10 @@ func (h *AuthHandler) SwitchDeviceAccount(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if !ok {
+		l.Warn("switch denied: account not on device",
+			zap.String("device_id", body.DeviceID),
+			zap.String("target_user_id", body.UserID),
+		)
 		jsonError(w, http.StatusForbidden, "account not linked to this device")
 		return
 	}
@@ -378,6 +413,11 @@ func (h *AuthHandler) SwitchDeviceAccount(w http.ResponseWriter, r *http.Request
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	l.Info("account switched",
+		zap.String("device_id", body.DeviceID),
+		zap.String("user_id", body.UserID),
+	)
 
 	jsonResponse(w, http.StatusOK, map[string]string{
 		"token":        token,
@@ -399,6 +439,7 @@ func (h *AuthHandler) SwitchDeviceAccount(w http.ResponseWriter, r *http.Request
 // @Router       /v1/auth/link-email [post]
 // @Security     BearerAuth
 func (h *AuthHandler) LinkEmail(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
 	userID := middleware.UserIDFromContext(r.Context())
 	if userID == "" {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
@@ -416,6 +457,7 @@ func (h *AuthHandler) LinkEmail(w http.ResponseWriter, r *http.Request) {
 
 	existing, _ := h.repo.GetByEmail(r.Context(), body.Email)
 	if existing != nil {
+		l.Warn("link-email: email already in use", zap.String("email", body.Email))
 		jsonError(w, http.StatusConflict, "email already in use")
 		return
 	}
@@ -435,7 +477,9 @@ func (h *AuthHandler) LinkEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.sendVerificationEmail(body.Email, code)
+	h.sendVerificationEmail(r.Context(), body.Email, code)
+
+	l.Info("verification code sent", zap.String("email", body.Email))
 
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "verification_sent"})
 }
@@ -451,6 +495,7 @@ func (h *AuthHandler) LinkEmail(w http.ResponseWriter, r *http.Request) {
 // @Router       /v1/auth/verify-email [post]
 // @Security     BearerAuth
 func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
 	userID := middleware.UserIDFromContext(r.Context())
 	if userID == "" {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
@@ -472,15 +517,21 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if storedUserID == "" {
+		l.Warn("verify-email: invalid code")
 		jsonError(w, http.StatusBadRequest, "invalid or expired code")
 		return
 	}
 	if storedUserID != userID {
+		l.Warn("verify-email: user mismatch",
+			zap.String("expected", storedUserID),
+			zap.String("got", userID),
+		)
 		jsonError(w, http.StatusBadRequest, "invalid or expired code")
 		return
 	}
 	if time.Now().After(expiresAt) {
 		_ = h.verifyRepo.DeleteByTokenHash(r.Context(), tokenHash)
+		l.Warn("verify-email: code expired", zap.String("email", emailAddr))
 		jsonError(w, http.StatusBadRequest, "code expired")
 		return
 	}
@@ -500,6 +551,8 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.verifyRepo.DeleteByUserID(r.Context(), userID)
 
+	l.Info("email verified", zap.String("email", emailAddr))
+
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -514,6 +567,8 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} map[string]string "status"
 // @Router       /v1/auth/forgot-password [post]
 func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		Email string `json:"email"`
 	}
@@ -525,6 +580,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// Always return 200 to prevent email enumeration
 	u, err := h.repo.GetByEmail(r.Context(), body.Email)
 	if err != nil || u == nil {
+		l.Info("forgot-password: email not found (silent)", zap.String("email", body.Email))
 		jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
@@ -534,12 +590,17 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	expiresAt := time.Now().Add(15 * time.Minute)
 
 	if err := h.resetRepo.Save(r.Context(), u.ID, tokenHash, expiresAt); err != nil {
-		log.Printf("forgot-password: failed to save token: %v", err)
+		l.Error("failed to save reset token",
+			zap.String("user_id", u.ID),
+			zap.Error(err),
+		)
 		jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
-	h.sendPasswordResetEmail(body.Email, code)
+	h.sendPasswordResetEmail(r.Context(), body.Email, code)
+
+	l.Info("password reset code sent", zap.String("email", body.Email))
 
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -554,6 +615,8 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 // @Failure      400 {object} map[string]string "error"
 // @Router       /v1/auth/reset-password [post]
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	l := logger.FromCtx(r.Context())
+
 	var body struct {
 		Email       string `json:"email"`
 		Code        string `json:"code"`
@@ -571,11 +634,13 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if userID == "" {
+		l.Warn("reset-password: invalid code")
 		jsonError(w, http.StatusBadRequest, "invalid or expired code")
 		return
 	}
 	if time.Now().After(expiresAt) {
 		_ = h.resetRepo.DeleteByTokenHash(r.Context(), tokenHash)
+		l.Warn("reset-password: code expired", zap.String("user_id", userID))
 		jsonError(w, http.StatusBadRequest, "code expired")
 		return
 	}
@@ -593,6 +658,8 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.resetRepo.DeleteByTokenHash(r.Context(), tokenHash)
 
+	l.Info("password reset", zap.String("user_id", userID))
+
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -606,9 +673,13 @@ func generateCode() string {
 	return fmt.Sprintf("%06d", n.Int64())
 }
 
-func (h *AuthHandler) sendVerificationEmail(toEmail, code string) {
+func (h *AuthHandler) sendVerificationEmail(ctx context.Context, toEmail, code string) {
+	l := logger.FromCtx(ctx)
 	if h.emailSender == nil {
-		log.Printf("EMAIL (no SMTP configured): verification code for %s: %s", toEmail, code)
+		l.Warn("smtp not configured, logging verification code",
+			zap.String("email", toEmail),
+			zap.String("code", code),
+		)
 		return
 	}
 	body := fmt.Sprintf(
@@ -616,13 +687,20 @@ func (h *AuthHandler) sendVerificationEmail(toEmail, code string) {
 		code,
 	)
 	if err := h.emailSender.Send(toEmail, "Petio: подтверждение email", body); err != nil {
-		log.Printf("failed to send verification email to %s: %v", toEmail, err)
+		l.Error("failed to send verification email",
+			zap.String("email", toEmail),
+			zap.Error(err),
+		)
 	}
 }
 
-func (h *AuthHandler) sendPasswordResetEmail(toEmail, code string) {
+func (h *AuthHandler) sendPasswordResetEmail(ctx context.Context, toEmail, code string) {
+	l := logger.FromCtx(ctx)
 	if h.emailSender == nil {
-		log.Printf("EMAIL (no SMTP configured): password reset code for %s: %s", toEmail, code)
+		l.Warn("smtp not configured, logging reset code",
+			zap.String("email", toEmail),
+			zap.String("code", code),
+		)
 		return
 	}
 	body := fmt.Sprintf(
@@ -630,6 +708,9 @@ func (h *AuthHandler) sendPasswordResetEmail(toEmail, code string) {
 		code,
 	)
 	if err := h.emailSender.Send(toEmail, "Petio: сброс пароля", body); err != nil {
-		log.Printf("failed to send reset email to %s: %v", toEmail, err)
+		l.Error("failed to send reset email",
+			zap.String("email", toEmail),
+			zap.Error(err),
+		)
 	}
 }

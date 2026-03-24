@@ -3,26 +3,26 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
+
+	"go.uber.org/zap"
 
 	"petio/backend/internal/repository"
 	"petio/backend/internal/transport/http/handlers/middleware"
 )
 
 type ProfileHandler struct {
-	repo       repository.UserRepository
-	mod        *moderation.Client
-	thresholds moderation.Thresholds
+	repo repository.UserRepository
+	mod  *moderation.Client
 }
 
 func NewProfileHandler(
 	repo repository.UserRepository,
 	mod *moderation.Client,
-	thresholds moderation.Thresholds,
 ) *ProfileHandler {
-	return &ProfileHandler{repo: repo, mod: mod, thresholds: thresholds}
+	return &ProfileHandler{repo: repo, mod: mod}
 }
 
 // Get godoc
@@ -79,30 +79,39 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// ── text moderation for profile fields ──
 	if h.mod != nil {
+		l := logger.FromCtx(r.Context())
 		for _, text := range []string{p.Bio, p.Name, p.Username} {
 			if text == "" {
 				continue
 			}
-			scores, err := h.mod.CheckText(r.Context(), text)
+			resp, err := h.mod.CheckText(r.Context(), text)
 			if err != nil {
-				log.Printf("WARNING: profile text moderation failed: %v", err)
+				l.Warn("profile text moderation failed", zap.Error(err))
 				continue
 			}
-			if scores == nil {
+			if resp == nil {
 				continue
 			}
-			d := h.thresholds.Evaluate(scores)
-			if d.Block {
+			if resp.Blocked {
+				reason := "toxic_content"
+				if resp.Reason != nil {
+					reason = *resp.Reason
+				}
+				l.Warn("profile text blocked", zap.String("reason", reason))
 				jsonError(w, http.StatusUnprocessableEntity,
-					fmt.Sprintf("text rejected: %s", d.Reason))
+					fmt.Sprintf("text rejected: %s", reason))
 				return
 			}
 		}
 	}
 
 	profile, err := h.repo.GetProfile(r.Context(), userID)
-	if err != nil || profile == nil {
-		jsonError(w, http.StatusInternalServerError, "profile not found")
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if profile == nil {
+		jsonError(w, http.StatusNotFound, "profile not found")
 		return
 	}
 	profile.Name = p.Name

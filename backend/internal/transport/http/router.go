@@ -6,7 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.uber.org/zap"
 
 	"petio/backend/internal/transport/http/handlers"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -23,20 +25,35 @@ func NewRouter(
 	chat *handlers.ChatHandler,
 	profile *handlers.ProfileHandler,
 	upload *handlers.UploadHandler,
+	shelter *handlers.ShelterHandler,
 	jwtSecret string,
+	log *zap.Logger,
 ) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RealIP)
-	r.Use(chimiddleware.Logger)
+	r.Use(chimiddleware.RequestID)
+	r.Use(middleware.RequestLog(log.Named("http")))
+	r.Use(middleware.PrometheusMetrics)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(corsMiddleware())
+
+	r.Handle("/metrics", promhttp.Handler())
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Post("/auth/login", auth.Login)
-		r.Post("/auth/register", auth.Register)
 		r.Post("/auth/refresh", auth.RefreshToken)
+		r.Post("/auth/device", auth.LoginByDevice)
+		r.Get("/auth/device/accounts", auth.ListDeviceAccounts)
+		r.Post("/auth/device/switch", auth.SwitchDeviceAccount)
+		r.Post("/auth/forgot-password", auth.ForgotPassword)
+		r.Post("/auth/reset-password", auth.ResetPassword)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWT(jwtSecret))
@@ -85,7 +102,18 @@ func NewRouter(
 				r.Post("/{postId}/comments", post.AddComment)
 			})
 
-			r.Post("/chat/send", chat.Send)
+			r.Route("/chats", func(r chi.Router) {
+				r.Get("/", chat.ListChats)
+				r.Post("/", chat.CreateChat)
+				r.Get("/stats", chat.GetStats)
+
+				r.Get("/{id}", chat.GetChat)
+				r.Patch("/{id}", chat.UpdateChatTitle)
+				r.Delete("/{id}", chat.DeleteChat)
+
+				r.Get("/{id}/messages", chat.GetMessages)
+				r.Post("/{id}/messages", chat.SendMessage)
+			})
 
 			r.Post("/upload/pet-photo", upload.UploadPetPhoto)
 			r.Post("/upload/post-image", upload.UploadPostImage)
@@ -93,6 +121,18 @@ func NewRouter(
 
 			r.Get("/profile", profile.Get)
 			r.Put("/profile", profile.Update)
+
+			r.Post("/auth/link-email", auth.LinkEmail)
+			r.Post("/auth/verify-email", auth.VerifyEmail)
+
+			r.Route("/shelters", func(r chi.Router) {
+				r.Get("/", shelter.List)
+				r.Post("/", shelter.Create)
+				r.Get("/{id}", shelter.Get)
+				r.Put("/{id}", shelter.Update)
+				r.Delete("/{id}", shelter.Delete)
+			})
+
 		})
 	})
 

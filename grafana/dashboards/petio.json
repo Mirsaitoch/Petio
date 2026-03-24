@@ -1,0 +1,338 @@
+{
+  "uid": "petio-backend",
+  "title": "Petio Backend",
+  "tags": ["petio", "backend"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (method)",
+          "legendFormat": "{{ method }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Request Duration p95 (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{ endpoint }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Error Rate (4xx + 5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"4..|5..\"}[1m])) by (status)",
+          "legendFormat": "{{ status }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Top Endpoints",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "topk(10, sum by (endpoint, method) (rate(http_requests_total[5m])))",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Active Chats",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 16 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "active_chats_total" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Registrations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 16 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "user_registrations_total" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Pets Created",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 16 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "pets_created_total" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "AI Request Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(ai_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{ model }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "big_model tokens",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 24 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum(ai_input_tokens_total{model=\"big_model\"} or vector(0))", "legendFormat": "input" },
+        { "expr": "sum(ai_output_tokens_total{model=\"big_model\"} or vector(0))", "legendFormat": "output" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 20,
+      "title": "light_model tokens",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 24 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum(ai_input_tokens_total{model=\"light_model\"} or vector(0))", "legendFormat": "input" },
+        { "expr": "sum(ai_output_tokens_total{model=\"light_model\"} or vector(0))", "legendFormat": "output" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 21,
+      "title": "classifier tokens",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 24 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum(ai_input_tokens_total{model=\"classifier\"} or vector(0))", "legendFormat": "input" },
+        { "expr": "sum(ai_output_tokens_total{model=\"classifier\"} or vector(0))", "legendFormat": "output" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 22,
+      "title": "big_model cost (₽)",
+      "description": "input 0.5₽/1k, output 1.2₽/1k",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 28 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(ai_input_tokens_total{model=\"big_model\"} or vector(0)) * 0.5 + sum(ai_output_tokens_total{model=\"big_model\"} or vector(0)) * 1.2) / 1000",
+          "legendFormat": "₽"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":200}] } }, "overrides": [] }
+    },
+    {
+      "id": 23,
+      "title": "light_model cost (₽)",
+      "description": "input 0.2₽/1k, output 0.2₽/1k",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 28 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(ai_input_tokens_total{model=\"light_model\"} or vector(0)) + sum(ai_output_tokens_total{model=\"light_model\"} or vector(0))) * 0.2 / 1000",
+          "legendFormat": "₽"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":200}] } }, "overrides": [] }
+    },
+    {
+      "id": 24,
+      "title": "classifier cost (₽)",
+      "description": "input 0.2₽/1k, output 0.2₽/1k",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 28 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(ai_input_tokens_total{model=\"classifier\"} or vector(0)) + sum(ai_output_tokens_total{model=\"classifier\"} or vector(0))) * 0.2 / 1000",
+          "legendFormat": "₽"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":200}] } }, "overrides": [] }
+    },
+    {
+      "id": 17,
+      "title": "Total Cost (₽)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 24 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(ai_input_tokens_total{model=\"big_model\"} or vector(0)) * 0.5 + sum(ai_output_tokens_total{model=\"big_model\"} or vector(0)) * 1.2 + sum(ai_input_tokens_total{model=~\"light_model|classifier\"} or vector(0)) * 0.2 + sum(ai_output_tokens_total{model=~\"light_model|classifier\"} or vector(0)) * 0.2) / 1000",
+          "legendFormat": "₽"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":100},{"color":"red","value":500}] } }, "overrides": [] }
+    },
+    {
+      "id": 25,
+      "title": "Tokens Cumulative (by model)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "ai_input_tokens_total", "legendFormat": "{{ model }} input" },
+        { "expr": "ai_output_tokens_total", "legendFormat": "{{ model }} output" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 10,
+      "title": "Chat Messages Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(chat_messages_total[1m])",
+          "legendFormat": "{{ role }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "Moderation Blocks",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(moderation_blocked_total[5m])",
+          "legendFormat": "{{ type }} — {{ reason }}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Moderation Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(moderation_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{ type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "S3 Upload Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(s3_uploads_total[5m])",
+          "legendFormat": "{{ type }} {{ status }}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "S3 Upload Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(s3_upload_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{ type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "title": "DB Query Duration (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le, table))",
+          "legendFormat": "{{ table }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "title": "DB Errors",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(db_queries_total{status=\"error\"}[5m])",
+          "legendFormat": "{{ operation }} {{ table }}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

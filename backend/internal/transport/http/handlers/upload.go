@@ -3,13 +3,16 @@ package handlers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
+	"petio/backend/internal/metrics"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"petio/backend/clients/s3"
 	"petio/backend/internal/transport/http/handlers/middleware"
@@ -84,10 +87,17 @@ func (h *UploadHandler) UploadPostImage(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, prefix string) {
+	start := time.Now()
+	l := logger.FromCtx(r.Context()).With(
+		zap.String("prefix", prefix),
+	)
+
 	if h.s3 == nil {
 		jsonError(w, http.StatusServiceUnavailable, "upload disabled: S3 client not initialized")
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "disabled").Inc()
 		return
 	}
+
 	if r.ContentLength > maxUploadSize {
 		jsonError(w, http.StatusRequestEntityTooLarge, "file too large (max 10 MB)")
 		return
@@ -115,27 +125,61 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	body, err := io.ReadAll(io.LimitReader(file, maxUploadSize))
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "error").Inc()
 		return
 	}
+
+	fileSize := len(body)
 	if len(body) == 0 {
 		jsonError(w, http.StatusBadRequest, "empty file")
 		return
 	}
 
 	// ── ML image moderation ──
-	if h.mod != nil {
-		scores, err := h.mod.CheckImage(r.Context(), body, header.Filename)
+	if h.mod == nil {
+		l.Warn("moderation skipped: service not configured, image uploaded without check",
+			zap.String("filename", header.Filename),
+			zap.Int("file_size", fileSize),
+		)
+	} else {
+		resp, err := h.mod.CheckImage(r.Context(), body, header.Filename)
 		if err != nil {
-			log.Printf("WARNING: image moderation failed: %v", err)
-		} else if scores != nil && scores.Block {
-			reason := "inappropriate_content"
-			if scores.Reason != nil {
-				reason = *scores.Reason
+			l.Warn("image moderation failed",
+				zap.String("filename", header.Filename),
+				zap.Int("file_size", fileSize),
+				zap.Error(err),
+			)
+		} else if resp != nil {
+			reason := ""
+			if resp.Reason != nil {
+				reason = *resp.Reason
 			}
-			jsonError(w, http.StatusUnprocessableEntity,
-				fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
-					reason, scores.NSFWScore, scores.PornScore, scores.ViolenceScore, scores.AbuseScore))
-			return
+			l.Info("image moderation result",
+				zap.String("filename", header.Filename),
+				zap.Int("file_size", fileSize),
+				zap.String("action", resp.Action),
+				zap.Bool("blocked", resp.Blocked),
+				zap.Float64("confidence", resp.Confidence),
+				zap.String("reason", reason),
+				zap.Float64("nsfw", resp.Scores.NSFW),
+				zap.Float64("porn", resp.Scores.Porn),
+				zap.Float64("violence", resp.Scores.Violence),
+				zap.Float64("abuse", resp.Scores.Abuse),
+			)
+			if resp.Blocked {
+				if reason == "" {
+					reason = "inappropriate_content"
+				}
+				l.Warn("image blocked",
+					zap.String("filename", header.Filename),
+					zap.String("reason", reason),
+					zap.Float64("confidence", resp.Confidence),
+				)
+				jsonError(w, http.StatusUnprocessableEntity,
+					fmt.Sprintf("image rejected: %s (nsfw=%.4f, porn=%.4f, violence=%.4f, abuse=%.4f)",
+						reason, resp.Scores.NSFW, resp.Scores.Porn, resp.Scores.Violence, resp.Scores.Abuse))
+				return
+			}
 		}
 	}
 
@@ -153,10 +197,27 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 
 	key := fmt.Sprintf("%s/%s/%s%s", prefix, userID, uuid.New().String(), ext)
 	urlStr, err := h.s3.Upload(r.Context(), key, body, ct)
+	duration := time.Since(start).Seconds()
+
 	if err != nil {
+		l.Error("s3 upload failed",
+			zap.String("key", key),
+			zap.Error(err),
+		)
 		jsonError(w, http.StatusInternalServerError, err.Error())
+		metrics.S3UploadsTotal.WithLabelValues(prefix, "error").Inc()
 		return
 	}
+	metrics.S3UploadsTotal.WithLabelValues(prefix, "success").Inc()
+	metrics.S3UploadSize.WithLabelValues(prefix).Observe(float64(fileSize))
+	metrics.S3UploadDuration.WithLabelValues(prefix).Observe(duration)
+
+	l.Info("file uploaded",
+		zap.String("key", key),
+		zap.Int("file_size", fileSize),
+		zap.Float64("duration_s", duration),
+	)
+
 	jsonResponse(w, http.StatusCreated, map[string]string{"url": urlStr})
 }
 

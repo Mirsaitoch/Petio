@@ -11,10 +11,8 @@ COPY download_models.py /opt/tritonserver/
 COPY model_repository /models
 COPY entrypoint.sh /opt/tritonserver/
 
-
-
-
-RUN chmod +x /opt/tritonserver/entrypoint.sh
+RUN sed -i 's/\r$//' /opt/tritonserver/entrypoint.sh && \
+    chmod +x /opt/tritonserver/entrypoint.sh
 
 EXPOSE 8000 8001 8002
 

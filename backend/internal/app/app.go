@@ -4,14 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
+	"petio/backend/clients/yandexai"
 	"time"
+
+	"go.uber.org/zap"
 
 	"petio/backend/clients/kserve"
 	"petio/backend/clients/moderation"
 	"petio/backend/clients/s3"
 	"petio/backend/internal/config"
+	"petio/backend/internal/email"
 	"petio/backend/internal/migrations"
 	"petio/backend/internal/repository/postgres"
 	"petio/backend/internal/service"
@@ -24,9 +27,10 @@ type App struct {
 	db     *sql.DB
 	kserve *kserve.Client
 	server *http.Server
+	log    *zap.Logger
 }
 
-func New(cfg *config.Config) (*App, error) {
+func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 	db, err := postgres.New(cfg.DB.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("db: %w", err)
@@ -38,37 +42,40 @@ func New(cfg *config.Config) (*App, error) {
 
 	kc := kserve.New(cfg.KServe.BaseURL)
 
-	if !cfg.S3.S3Configured() {
-		msg := "S3 required at startup. Missing:"
-		if cfg.S3.Bucket == "" {
-			msg += " S3_BUCKET"
-		}
-		if cfg.S3.AccessKeyID == "" {
-			msg += " AWS_ACCESS_KEY_ID"
-		}
-		if cfg.S3.SecretAccessKey == "" {
-			msg += " AWS_SECRET_ACCESS_KEY"
-		}
-		return nil, fmt.Errorf("%s", msg)
+	var s3Client *s3.Client
+	if cfg.S3.S3Configured() {
+		s3Client = s3.New(s3.Config{
+			Bucket:          cfg.S3.Bucket,
+			Region:          cfg.S3.Region,
+			Endpoint:        cfg.S3.Endpoint,
+			BaseURL:         cfg.S3.BaseURL,
+			AccessKeyID:     cfg.S3.AccessKeyID,
+			SecretAccessKey: cfg.S3.SecretAccessKey,
+		})
+		log.Info("s3 enabled", zap.String("bucket", cfg.S3.Bucket))
+	} else {
+		log.Warn("s3 disabled — upload endpoints will return 503")
 	}
-
-	s3Client := s3.New(s3.Config{
-		Bucket:          cfg.S3.Bucket,
-		Region:          cfg.S3.Region,
-		Endpoint:        cfg.S3.Endpoint,
-		BaseURL:         cfg.S3.BaseURL,
-		AccessKeyID:     cfg.S3.AccessKeyID,
-		SecretAccessKey: cfg.S3.SecretAccessKey,
-	})
 
 	// ── Moderation client (nil if URL empty) ──
 	modClient := moderation.New(cfg.Moderation.BaseURL)
 	if modClient != nil {
-		log.Printf("moderation: enabled at %s", cfg.Moderation.BaseURL)
+		log.Info("moderation enabled", zap.String("url", cfg.Moderation.BaseURL))
 	} else {
-		log.Println("moderation: disabled (MODERATION_URL not set)")
+		log.Warn("moderation disabled (MODERATION_URL not set) — uploads and posts will skip content checks")
 	}
-	thresholds := moderation.DefaultThresholds()
+
+	var aiClient *yandexai.Client
+	if cfg.YandexAI.APIKey != "" && cfg.YandexAI.FolderID != "" {
+		aiClient = yandexai.New(yandexai.Config{
+			APIKey:   cfg.YandexAI.APIKey,
+			FolderID: cfg.YandexAI.FolderID,
+			BaseURL:  cfg.YandexAI.BaseURL,
+		})
+		log.Info("yandex ai enabled")
+	} else {
+		log.Warn("yandex ai disabled (using fallback responses)")
+	}
 
 	petRepo := postgres.NewPetRepository(db)
 	reminderRepo := postgres.NewReminderRepository(db)
@@ -78,30 +85,45 @@ func New(cfg *config.Config) (*App, error) {
 	postRepo := postgres.NewPostRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
+	resetTokenRepo := postgres.NewPasswordResetTokenRepository(db)
+	emailVerifyRepo := postgres.NewEmailVerificationTokenRepository(db)
+	shelterRepo := postgres.NewShelterRepository(db)
+	chatRepo := postgres.NewChatRepository(db)
 
-	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, cfg.JWT.Secret, cfg.JWT.Expiration)
+	emailSender := email.NewSender(cfg.SMTP, log.Named("email"))
+	if emailSender != nil {
+		log.Info("smtp enabled", zap.String("host", cfg.SMTP.Host))
+	} else {
+		log.Warn("smtp disabled — verification codes will be logged")
+	}
+
+	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, resetTokenRepo, emailVerifyRepo, emailSender, cfg.JWT.Secret, cfg.JWT.Expiration, log.Named("auth"))
 	petHandler := handlers.NewPetHandler(petRepo)
 	reminderHandler := handlers.NewReminderHandler(reminderRepo)
 	weightHandler := handlers.NewWeightHandler(weightRepo)
 	diaryHandler := handlers.NewDiaryHandler(diaryRepo)
 	articleHandler := handlers.NewArticleHandler(articleRepo)
-	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient, thresholds)
-	chatService := service.NewChatService(kc)
+	postHandler := handlers.NewPostHandler(postRepo, userRepo, modClient)
+	chatService := service.NewChatService(aiClient, chatRepo, log.Named("chat"))
 	chatHandler := handlers.NewChatHandler(chatService)
-	profileHandler := handlers.NewProfileHandler(userRepo, modClient, thresholds)
+	profileHandler := handlers.NewProfileHandler(userRepo, modClient)
 	uploadHandler := handlers.NewUploadHandler(s3Client, modClient)
+	shelterHandler := handlers.NewShelterHandler(shelterRepo)
 
 	router := httptransport.NewRouter(
 		authHandler, petHandler, reminderHandler, weightHandler,
 		diaryHandler, articleHandler, postHandler, chatHandler,
-		profileHandler, uploadHandler,
-		cfg.JWT.Secret,
+		profileHandler, uploadHandler, shelterHandler,
+		cfg.JWT.Secret, log,
 	)
+
+	log.Info("server starting", zap.String("addr", cfg.HTTPAddr))
 
 	return &App{
 		cfg:    cfg,
 		db:     db,
 		kserve: kc,
+		log:    log,
 		server: &http.Server{
 			Addr:         cfg.HTTPAddr,
 			Handler:      router,
@@ -113,6 +135,11 @@ func New(cfg *config.Config) (*App, error) {
 
 func (a *App) Run() error {
 	return a.server.ListenAndServe()
+}
+
+// Handler возвращает HTTP handler для тестов (httptest.NewServer).
+func (a *App) Handler() http.Handler {
+	return a.server.Handler
 }
 
 func (a *App) Shutdown(ctx context.Context) error {

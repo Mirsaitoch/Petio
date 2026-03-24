@@ -1,14 +1,17 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"petio/backend/clients/moderation"
+	"petio/backend/internal/logger"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"petio/backend/internal/domain"
 	"petio/backend/internal/repository"
@@ -16,23 +19,20 @@ import (
 )
 
 type PostHandler struct {
-	repo       repository.PostRepository
-	userRepo   repository.UserRepository
-	mod        *moderation.Client
-	thresholds moderation.Thresholds
+	repo     repository.PostRepository
+	userRepo repository.UserRepository
+	mod      *moderation.Client
 }
 
 func NewPostHandler(
 	repo repository.PostRepository,
 	userRepo repository.UserRepository,
 	mod *moderation.Client,
-	thresholds moderation.Thresholds,
 ) *PostHandler {
 	return &PostHandler{
-		repo:       repo,
-		userRepo:   userRepo,
-		mod:        mod,
-		thresholds: thresholds,
+		repo:     repo,
+		userRepo: userRepo,
+		mod:      mod,
 	}
 }
 
@@ -40,24 +40,35 @@ func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
 	if h.mod == nil {
 		return nil
 	}
+	l := logger.FromCtx(r.Context())
 	for _, t := range texts {
 		if t == "" {
 			continue
 		}
-		scores, err := h.mod.CheckText(r.Context(), t)
+		resp, err := h.mod.CheckText(r.Context(), t)
 		if err != nil {
-			log.Printf("WARNING: text moderation failed: %v", err)
+			l.Warn("text moderation failed", zap.Error(err))
 			continue
 		}
-		if scores == nil {
+		if resp == nil {
 			continue
 		}
-		l, _ := json.MarshalIndent(scores, "", "  ")
-		log.Println(string(l))
-		d := h.thresholds.Evaluate(scores)
-		if d.Block {
-			return fmt.Errorf("text rejected: %s (toxic=%.2f, obscene=%.2f, threat=%.2f)",
-				d.Reason, scores.Toxic, scores.Obscene, scores.Threat)
+		l.Info("text moderation result",
+			zap.String("action", resp.Action),
+			zap.Bool("blocked", resp.Blocked),
+			zap.Float64("confidence", resp.Confidence),
+			zap.Float64("toxicity", resp.Scores.Toxicity),
+			zap.Float64("severe_toxicity", resp.Scores.SevereToxicity),
+			zap.Float64("obscene", resp.Scores.Obscene),
+			zap.Float64("insult", resp.Scores.Insult),
+		)
+		if resp.Blocked {
+			reason := "toxic_content"
+			if resp.Reason != nil {
+				reason = *resp.Reason
+			}
+			l.Warn("text blocked", zap.String("reason", reason))
+			return fmt.Errorf("text rejected: %s", reason)
 		}
 	}
 	return nil
@@ -234,6 +245,10 @@ func (h *PostHandler) Update(w http.ResponseWriter, r *http.Request) {
 	p.ID = id
 	p.UserID = userID
 	if err := h.repo.Update(r.Context(), &p); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "post not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -259,6 +274,10 @@ func (h *PostHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Delete(r.Context(), id, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, http.StatusNotFound, "post not found")
+			return
+		}
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

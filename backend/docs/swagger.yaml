@@ -15,9 +15,68 @@ definitions:
       petType:
         type: string
       readTime:
-        type: string
+        type: integer
       title:
         type: string
+    type: object
+  domain.Chat:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      last_message:
+        allOf:
+        - $ref: '#/definitions/domain.ChatMessage'
+        description: Не из БД - подгружаем отдельно
+      stats:
+        $ref: '#/definitions/domain.ChatStats'
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  domain.ChatMessage:
+    properties:
+      chat_id:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      input_tokens:
+        type: integer
+      model_used:
+        description: AI метаданные
+        type: string
+      output_tokens:
+        type: integer
+      question_type:
+        type: string
+      role:
+        description: user, assistant, system
+        type: string
+      total_tokens:
+        type: integer
+    type: object
+  domain.ChatStats:
+    properties:
+      chat_id:
+        type: string
+      last_message_at:
+        type: string
+      message_count:
+        type: integer
+      total_input_tokens:
+        type: integer
+      total_output_tokens:
+        type: integer
+      total_tokens:
+        type: integer
     type: object
   domain.Comment:
     properties:
@@ -46,7 +105,7 @@ definitions:
   domain.Pet:
     properties:
       age:
-        type: string
+        type: integer
       birthDate:
         type: string
       breed:
@@ -95,6 +154,19 @@ definitions:
       timestamp:
         type: string
     type: object
+  domain.PostsResponse:
+    properties:
+      has_more:
+        description: есть ли еще посты внизу
+        type: boolean
+      has_new:
+        description: есть ли новые посты сверху
+        type: boolean
+      posts:
+        items:
+          $ref: '#/definitions/domain.Post'
+        type: array
+    type: object
   domain.Reminder:
     properties:
       completed:
@@ -126,6 +198,39 @@ definitions:
     - ReminderVaccination
     - ReminderDeworming
     - ReminderGrooming
+  domain.Shelter:
+    properties:
+      category:
+        type: string
+      city:
+        type: string
+      description:
+        type: string
+      founded:
+        type: string
+      id:
+        type: string
+      imageURL:
+        type: string
+      longDescription:
+        type: string
+      name:
+        type: string
+      needs:
+        items:
+          type: string
+        type: array
+      phone:
+        type: string
+      tagline:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      website:
+        type: string
+    type: object
   domain.UserProfile:
     properties:
       avatar:
@@ -168,6 +273,20 @@ info:
   title: Petio API
   version: "1.0"
 paths:
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'status: ok'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Проверка работоспособности сервиса
+      tags:
+      - system
   /v1/articles:
     get:
       produces:
@@ -274,6 +393,150 @@ paths:
       summary: Обновить статью
       tags:
       - articles
+  /v1/auth/device:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: device_id
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token, refreshToken, userId, isNew
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Вход / авторегистрация по device_id
+      tags:
+      - auth
+  /v1/auth/device/accounts:
+    get:
+      parameters:
+      - description: device_id
+        in: query
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: accounts
+          schema:
+            items:
+              type: object
+            type: array
+      summary: Список аккаунтов на устройстве
+      tags:
+      - auth
+  /v1/auth/device/switch:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: device_id, user_id
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token, refreshToken
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Переключиться на другой аккаунт на том же устройстве
+      tags:
+      - auth
+  /v1/auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: email
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Запросить сброс пароля
+      tags:
+      - auth
+  /v1/auth/link-email:
+    post:
+      consumes:
+      - application/json
+      description: Email и пароль НЕ сохраняются до подтверждения кода через /auth/verify-email
+      parameters:
+      - description: email, password
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Привязать email — отправляет код верификации на почту
+      tags:
+      - auth
   /v1/auth/login:
     post:
       consumes:
@@ -303,12 +566,12 @@ paths:
       summary: Вход
       tags:
       - auth
-  /v1/auth/register:
+  /v1/auth/refresh:
     post:
       consumes:
       - application/json
       parameters:
-      - description: email, password
+      - description: refreshToken
         in: body
         name: body
         required: true
@@ -317,8 +580,37 @@ paths:
       produces:
       - application/json
       responses:
-        "201":
-          description: token
+        "200":
+          description: token, refreshToken
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Обновить access token
+      tags:
+      - auth
+  /v1/auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: email, code, new_password
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status
           schema:
             additionalProperties:
               type: string
@@ -329,20 +621,185 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "409":
+      summary: Сбросить пароль по коду из email
+      tags:
+      - auth
+  /v1/auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: code
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
           description: error
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: Регистрация
+      security:
+      - BearerAuth: []
+      summary: Подтвердить email кодом из письма
       tags:
       - auth
-  /v1/chat/send:
+  /v1/chats:
+    get:
+      parameters:
+      - description: Limit (default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Chat'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список всех чатов пользователя
+      tags:
+      - chat
     post:
       consumes:
       - application/json
       parameters:
+      - description: title (optional)
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Chat'
+      security:
+      - BearerAuth: []
+      summary: Создать новый чат
+      tags:
+      - chat
+  /v1/chats/{id}:
+    delete:
+      parameters:
+      - description: Chat ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить чат
+      tags:
+      - chat
+    get:
+      parameters:
+      - description: Chat ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Chat'
+      security:
+      - BearerAuth: []
+      summary: Получить чат по ID
+      tags:
+      - chat
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Chat ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: title
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - BearerAuth: []
+      summary: Обновить название чата
+      tags:
+      - chat
+  /v1/chats/{id}/messages:
+    get:
+      parameters:
+      - description: Chat ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Limit (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.ChatMessage'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Получить историю сообщений чата
+      tags:
+      - chat
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Chat ID
+        in: path
+        name: id
+        required: true
+        type: string
       - description: text
         in: body
         name: body
@@ -353,14 +810,26 @@ paths:
       - application/json
       responses:
         "200":
-          description: reply
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/domain.ChatMessage'
       security:
       - BearerAuth: []
       summary: Отправить сообщение в чат
+      tags:
+      - chat
+  /v1/chats/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.ChatStats'
+      security:
+      - BearerAuth: []
+      summary: Получить общую статистику по чатам
       tags:
       - chat
   /v1/diary/{id}:
@@ -419,9 +888,13 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/domain.HealthDiaryEntry'
+      produces:
+      - application/json
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/domain.HealthDiaryEntry'
       security:
       - BearerAuth: []
       summary: Обновить запись дневника
@@ -715,6 +1188,18 @@ paths:
   /v1/posts:
     get:
       parameters:
+      - description: количество записей (по умолчанию 20, максимум 50)
+        in: query
+        name: limit
+        type: integer
+      - description: ID поста для загрузки старых
+        in: query
+        name: after_id
+        type: string
+      - description: ID поста для загрузки новых
+        in: query
+        name: before_id
+        type: string
       - description: фильтр по клубу
         in: query
         name: club
@@ -725,12 +1210,10 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/domain.Post'
-            type: array
+            $ref: '#/definitions/domain.PostsResponse'
       security:
       - BearerAuth: []
-      summary: Список постов
+      summary: Список постов с пагинацией
       tags:
       - posts
     post:
@@ -873,6 +1356,27 @@ paths:
       security:
       - BearerAuth: []
       summary: Добавить комментарий к посту
+      tags:
+      - posts
+  /v1/posts/all:
+    get:
+      parameters:
+      - description: фильтр по клубу
+        in: query
+        name: club
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Post'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список всех постов (без пагинации)
       tags:
       - posts
   /v1/profile:
@@ -1028,6 +1532,154 @@ paths:
       summary: Обновить напоминание
       tags:
       - reminders
+  /v1/shelters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Shelter'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Список приютов
+      tags:
+      - shelters
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: приют
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Shelter'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Shelter'
+      security:
+      - BearerAuth: []
+      summary: Создать приют
+      tags:
+      - shelters
+  /v1/shelters/{id}:
+    delete:
+      parameters:
+      - description: ID приюта
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Удалить приют
+      tags:
+      - shelters
+    get:
+      parameters:
+      - description: ID приюта
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Shelter'
+        "404":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить приют по ID
+      tags:
+      - shelters
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID приюта
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: данные
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Shelter'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Shelter'
+      security:
+      - BearerAuth: []
+      summary: Обновить приют
+      tags:
+      - shelters
+  /v1/upload/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Изображение (JPEG, PNG, GIF, WebP, до 10 MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: url
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Загрузка аватара пользователя
+      tags:
+      - upload
   /v1/upload/pet-photo:
     post:
       consumes:

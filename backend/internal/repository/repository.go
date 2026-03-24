@@ -64,4 +64,20 @@ type UserRepository interface {
 	Create(ctx context.Context, u *domain.User) error
 	GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, p *domain.UserProfile) error
+
+	// Device-based auth
+	CreateAnonymous(ctx context.Context) (*domain.User, error)
+	LinkDevice(ctx context.Context, userID, deviceID string) error
+	GetByDeviceID(ctx context.Context, deviceID string) ([]domain.User, error)
+	DeviceHasUser(ctx context.Context, deviceID, userID string) (bool, error)
+	LinkEmail(ctx context.Context, userID, email, passwordHash string) error
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
+}
+
+type ShelterRepository interface {
+	List(ctx context.Context) ([]domain.Shelter, error)
+	GetByID(ctx context.Context, id string) (*domain.Shelter, error)
+	Create(ctx context.Context, s *domain.Shelter) error
+	Update(ctx context.Context, s *domain.Shelter) error
+	Delete(ctx context.Context, id string) error
 }

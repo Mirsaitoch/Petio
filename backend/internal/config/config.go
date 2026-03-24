@@ -1,13 +1,13 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -16,7 +16,9 @@ type Config struct {
 	KServe     KServeConfig
 	S3         S3Config
 	JWT        JWTConfig
-	Moderation ModerationConfig // <-- NEW
+	Moderation ModerationConfig
+	YandexAI   YandexAIConfig
+	SMTP       SMTPConfig
 }
 
 type DBConfig struct {
@@ -40,9 +42,27 @@ type ModerationConfig struct {
 	BaseURL string
 }
 
+type YandexAIConfig struct {
+	APIKey   string
+	FolderID string
+	BaseURL  string
+}
+
 // S3Configured возвращает true, если заданы бакет и ключи доступа (S3 обязателен для загрузки).
 func (s S3Config) S3Configured() bool {
 	return s.Bucket != "" && s.AccessKeyID != "" && s.SecretAccessKey != ""
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+}
+
+func (s SMTPConfig) Configured() bool {
+	return s.Host != "" && s.From != ""
 }
 
 type JWTConfig struct {
@@ -50,7 +70,7 @@ type JWTConfig struct {
 	Expiration int
 }
 
-func Load() *Config {
+func Load(log *zap.Logger) *Config {
 	// Загружаем .env из нескольких мест (последний загруженный перезаписывает переменные)
 	paths := []string{".env", "backend/.env"}
 	if execPath, err := os.Executable(); err == nil {
@@ -63,10 +83,9 @@ func Load() *Config {
 		}
 	}
 	if loaded != "" {
-		log.Printf("config: loaded .env from %s (cwd: %s)", loaded, mustGetwd())
+		log.Info("loaded .env", zap.String("path", loaded), zap.String("cwd", mustGetwd()))
 	} else {
-		cwd := mustGetwd()
-		log.Printf("config: no .env file (cwd: %s); using process environment (in Docker: env_file / environment)", cwd)
+		log.Info("no .env file, using process environment", zap.String("cwd", mustGetwd()))
 	}
 
 	return &Config{
@@ -92,6 +111,18 @@ func Load() *Config {
 		Moderation: ModerationConfig{
 			BaseURL: getEnv("MODERATION_URL", ""),
 		},
+		YandexAI: YandexAIConfig{
+			APIKey:   getEnv("YANDEX_AI_API_KEY", ""),
+			FolderID: getEnv("YANDEX_AI_FOLDER_ID", ""),
+			BaseURL:  getEnv("YANDEX_AI_BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
+		},
+		SMTP: SMTPConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnv("SMTP_PORT", "587"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", ""),
+		},
 	}
 }
 
@@ -115,9 +146,7 @@ func loadEnvFile(path string) error {
 		return err
 	}
 	text := string(data)
-	if strings.HasPrefix(text, "\ufeff") {
-		text = strings.TrimPrefix(text, "\ufeff")
-	}
+	text = strings.TrimPrefix(text, "\ufeff")
 	envMap, err := godotenv.Unmarshal(text)
 	if err != nil {
 		return err

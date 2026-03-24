@@ -42,28 +42,20 @@ func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 
 	kc := kserve.New(cfg.KServe.BaseURL)
 
-	if !cfg.S3.S3Configured() {
-		msg := "S3 required at startup. Missing:"
-		if cfg.S3.Bucket == "" {
-			msg += " S3_BUCKET"
-		}
-		if cfg.S3.AccessKeyID == "" {
-			msg += " AWS_ACCESS_KEY_ID"
-		}
-		if cfg.S3.SecretAccessKey == "" {
-			msg += " AWS_SECRET_ACCESS_KEY"
-		}
-		return nil, fmt.Errorf("%s", msg)
+	var s3Client *s3.Client
+	if cfg.S3.S3Configured() {
+		s3Client = s3.New(s3.Config{
+			Bucket:          cfg.S3.Bucket,
+			Region:          cfg.S3.Region,
+			Endpoint:        cfg.S3.Endpoint,
+			BaseURL:         cfg.S3.BaseURL,
+			AccessKeyID:     cfg.S3.AccessKeyID,
+			SecretAccessKey: cfg.S3.SecretAccessKey,
+		})
+		log.Info("s3 enabled", zap.String("bucket", cfg.S3.Bucket))
+	} else {
+		log.Warn("s3 disabled — upload endpoints will return 503")
 	}
-
-	s3Client := s3.New(s3.Config{
-		Bucket:          cfg.S3.Bucket,
-		Region:          cfg.S3.Region,
-		Endpoint:        cfg.S3.Endpoint,
-		BaseURL:         cfg.S3.BaseURL,
-		AccessKeyID:     cfg.S3.AccessKeyID,
-		SecretAccessKey: cfg.S3.SecretAccessKey,
-	})
 
 	// ── Moderation client (nil if URL empty) ──
 	modClient := moderation.New(cfg.Moderation.BaseURL)

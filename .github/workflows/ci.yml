@@ -5,9 +5,15 @@ on:
     branches:
       - main
       - 'feature/*'
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   lint:
@@ -67,8 +73,8 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/petio_test?sslmode=disable
           JWT_SECRET: test-secret
-          SERVER_PORT: '0'
-        run: go test ./tests/... -v -race
+          APP_ENV: test
+        run: go test ./tests/... -v -race -timeout 120s
 
   build:
     name: Build

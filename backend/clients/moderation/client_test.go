@@ -34,7 +34,7 @@ func TestCheckText_Success(t *testing.T) {
 		assert.Equal(t, "/texts_scores", r.URL.Path)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestCheckImage_Success(t *testing.T) {
 		assert.Equal(t, "/images_scores", r.URL.Path)
 		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -93,7 +93,7 @@ func TestCheckImage_Success(t *testing.T) {
 func TestCheckText_ErrorStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		_, _ = w.Write([]byte("internal error"))
 	}))
 	defer srv.Close()
 

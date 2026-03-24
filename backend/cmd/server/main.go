@@ -26,7 +26,7 @@ import (
 
 func main() {
 	log := logger.New()
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 	zap.ReplaceGlobals(log)
 
 	cfg := config.Load(log)

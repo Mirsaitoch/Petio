@@ -146,9 +146,7 @@ func loadEnvFile(path string) error {
 		return err
 	}
 	text := string(data)
-	if strings.HasPrefix(text, "\ufeff") {
-		text = strings.TrimPrefix(text, "\ufeff")
-	}
+	text = strings.TrimPrefix(text, "\ufeff")
 	envMap, err := godotenv.Unmarshal(text)
 	if err != nil {
 		return err

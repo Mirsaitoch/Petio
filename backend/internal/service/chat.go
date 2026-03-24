@@ -155,6 +155,44 @@ func (s *ChatService) SendMessage(ctx context.Context, chatID, userID, text stri
 	return assistantMsg, nil
 }
 
+// classificationResult — результат парсинга ответа классификатора (две цифры: категория + необходимость контекста).
+// Категории: 0 — простой, 1 — сложный, 2 — уточняющий, 3 — не про животных, 4 — благодарность.
+// Контекст: 0 — не нужен, 1 — нужен.
+type classificationResult struct {
+	Category    int
+	NeedContext bool
+}
+
+func parseClassification(raw string) classificationResult {
+	s := strings.TrimSpace(raw)
+	if len(s) < 2 {
+		return classificationResult{Category: 1, NeedContext: true}
+	}
+	cat := int(s[0] - '0')
+	ctx := s[1] == '1'
+	if cat < 0 || cat > 4 {
+		cat = 1
+	}
+	return classificationResult{Category: cat, NeedContext: ctx}
+}
+
+func categoryLabel(cat int) string {
+	switch cat {
+	case 0:
+		return "simple"
+	case 1:
+		return "complex"
+	case 2:
+		return "clarification"
+	case 3:
+		return "off_topic"
+	case 4:
+		return "gratitude"
+	default:
+		return "unknown"
+	}
+}
+
 func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, chatContext []domain.ChatMessage) (*domain.ChatMessage, error) {
 	if s.aiClient == nil {
 		return s.fallbackMessage(chatID, text), nil
@@ -163,20 +201,24 @@ func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, ch
 	l := logger.FromCtx(ctx).With(zap.String("chat_id", chatID))
 
 	// 1. Классифицируем вопрос
-	questionType, classifierUsage, err := s.aiClient.ClassifyQuestion(ctx, text)
+	rawType, classifierUsage, err := s.aiClient.ClassifyQuestion(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("classify: %w", err)
 	}
 
-	questionType = strings.TrimSpace(strings.ToLower(questionType))
+	cl := parseClassification(rawType)
+	questionType := categoryLabel(cl.Category)
+
 	l.Info("question classified",
+		zap.String("raw", strings.TrimSpace(rawType)),
 		zap.String("type", questionType),
+		zap.Bool("need_context", cl.NeedContext),
 		zap.Int("classifier_input_tokens", classifierUsage.InputTokens),
 		zap.Int("classifier_output_tokens", classifierUsage.OutputTokens),
 	)
 
-	// 2. Обрабатываем spam отдельно
-	if questionType == "spam" {
+	// 2. Вопрос не по теме
+	if cl.Category == 3 {
 		return &domain.ChatMessage{
 			ChatID:       chatID,
 			Role:         "assistant",
@@ -190,17 +232,38 @@ func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, ch
 		}, nil
 	}
 
-	// 3. Выбираем модель
+	// 3. Благодарность
+	if cl.Category == 4 {
+		return &domain.ChatMessage{
+			ChatID:       chatID,
+			Role:         "assistant",
+			Content:      "Рад помочь! Если появятся ещё вопросы по уходу за питомцем — обращайтесь.",
+			ModelUsed:    "classifier_only",
+			QuestionType: questionType,
+			InputTokens:  classifierUsage.InputTokens,
+			OutputTokens: classifierUsage.OutputTokens,
+			TotalTokens:  classifierUsage.TotalTokens,
+			CreatedAt:    time.Now(),
+		}, nil
+	}
+
+	// 4. Собираем контекст только если классификатор сказал, что он нужен
+	var chatHistory string
+	if cl.NeedContext {
+		chatHistory = buildChatHistory(chatContext)
+	}
+
+	// 5. Выбираем модель: 0 — simple (light), 1/2 — complex (big)
 	var answer string
 	var usage *yandexai.Usage
 	var modelUsed string
 
-	switch questionType {
-	case "simple":
-		answer, usage, err = s.aiClient.GetSimpleAnswer(ctx, text)
+	switch cl.Category {
+	case 0:
+		answer, usage, err = s.aiClient.GetSimpleAnswer(ctx, text, chatHistory)
 		modelUsed = "light_model"
-	default:
-		answer, usage, err = s.aiClient.GetComplexAnswer(ctx, text)
+	default: // 1, 2
+		answer, usage, err = s.aiClient.GetComplexAnswer(ctx, text, chatHistory)
 		modelUsed = "big_model"
 	}
 
@@ -208,7 +271,7 @@ func (s *ChatService) getAIResponse(ctx context.Context, chatID, text string, ch
 		return nil, fmt.Errorf("ai model: %w", err)
 	}
 
-	// 4. Суммируем токены
+	// 6. Суммируем токены
 	return &domain.ChatMessage{
 		ChatID:       chatID,
 		Role:         "assistant",
@@ -243,6 +306,24 @@ func (s *ChatService) fallbackMessage(chatID, text string) *domain.ChatMessage {
 		ModelUsed: "fallback",
 		CreatedAt: time.Now(),
 	}
+}
+
+// buildChatHistory форматирует предыдущие сообщения в строку для передачи в промпт.
+// Формат: "user: текст\nassistant: текст\n..."
+// Последнее сообщение (текущий вопрос) не включается — оно идёт в input.
+func buildChatHistory(messages []domain.ChatMessage) string {
+	if len(messages) <= 1 {
+		return ""
+	}
+	var b strings.Builder
+	// Все кроме последнего (последнее = текущий вопрос пользователя)
+	for _, m := range messages[:len(messages)-1] {
+		b.WriteString(m.Role)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func (s *ChatService) generateTitle(firstMessage string) string {

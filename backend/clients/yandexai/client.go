@@ -50,22 +50,35 @@ type ResponseRequest struct {
 }
 
 type ResponseData struct {
-	ID       string `json:"id"`
-	Model    string `json:"model"`
-	Status   string `json:"status"`
-	Output   Output `json:"output"`
-	Usage    Usage  `json:"usage"`
-	Settings struct {
-		Temperature     float64 `json:"temperature"`
-		TopP            float64 `json:"top_p"`
-		MaxOutputTokens int     `json:"max_output_tokens"`
-	} `json:"settings"`
+	ID     string         `json:"id"`
+	Model  string         `json:"model"`
+	Status string         `json:"status"`
+	Output []OutputItem   `json:"output"`
+	Usage  Usage          `json:"usage"`
 }
 
-type Output struct {
-	Role   string `json:"role"`
-	Status string `json:"status"`
-	Text   string `json:"text"`
+type OutputItem struct {
+	Role    string          `json:"role"`
+	Status  string          `json:"status"`
+	Content []ContentBlock  `json:"content"`
+}
+
+type ContentBlock struct {
+	Text string `json:"text"`
+	Type string `json:"type"`
+}
+
+// ExtractText достаёт текст из первого output → первого content block.
+func (r *ResponseData) ExtractText() string {
+	if len(r.Output) == 0 {
+		return ""
+	}
+	for _, block := range r.Output[0].Content {
+		if block.Text != "" {
+			return block.Text
+		}
+	}
+	return ""
 }
 
 type Usage struct {
@@ -75,11 +88,16 @@ type Usage struct {
 }
 
 // GetSimpleAnswer - легкая модель для простых вопросов
-func (c *Client) GetSimpleAnswer(ctx context.Context, text string) (string, *Usage, error) {
+func (c *Client) GetSimpleAnswer(ctx context.Context, text string, chatHistory string) (string, *Usage, error) {
 	start := time.Now()
 	promptID := "fvt232dfb6v0g086p7eq"
 
-	resp, err := c.sendRequest(ctx, promptID, text, nil)
+	vars := map[string]string{
+		"meta_info": "",
+		"context":   chatHistory,
+	}
+
+	resp, err := c.sendRequest(ctx, promptID, text, vars)
 	duration := time.Since(start).Seconds()
 
 	status := "success"
@@ -96,7 +114,7 @@ func (c *Client) GetSimpleAnswer(ctx context.Context, text string) (string, *Usa
 
 	c.recordTokenMetrics("light_model", resp.Usage)
 
-	return resp.Output.Text, &resp.Usage, nil
+	return resp.ExtractText(), &resp.Usage, nil
 }
 
 func (c *Client) sendRequest(ctx context.Context, promptID string, input string, variables map[string]string) (*ResponseData, error) {
@@ -174,14 +192,19 @@ func (c *Client) ClassifyQuestion(ctx context.Context, text string) (string, *Us
 	// Записываем токены
 	c.recordTokenMetrics("classifier", resp.Usage)
 
-	return resp.Output.Text, &resp.Usage, nil
+	return resp.ExtractText(), &resp.Usage, nil
 }
 
-func (c *Client) GetComplexAnswer(ctx context.Context, text string) (string, *Usage, error) {
+func (c *Client) GetComplexAnswer(ctx context.Context, text string, chatHistory string) (string, *Usage, error) {
 	start := time.Now()
 	promptID := "fvt14l2e6cj5p7t18d4g"
 
-	resp, err := c.sendRequest(ctx, promptID, text, nil)
+	vars := map[string]string{
+		"meta_info": "",
+		"context":   chatHistory,
+	}
+
+	resp, err := c.sendRequest(ctx, promptID, text, vars)
 	duration := time.Since(start).Seconds()
 
 	status := "success"
@@ -198,7 +221,7 @@ func (c *Client) GetComplexAnswer(ctx context.Context, text string) (string, *Us
 
 	c.recordTokenMetrics("big_model", resp.Usage)
 
-	return resp.Output.Text, &resp.Usage, nil
+	return resp.ExtractText(), &resp.Usage, nil
 }
 
 func (c *Client) recordTokenMetrics(model string, usage Usage) {

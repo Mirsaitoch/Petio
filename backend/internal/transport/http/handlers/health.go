@@ -15,6 +15,12 @@ func NewHealthHandler(db *sql.DB) *HealthHandler {
 	return &HealthHandler{db: db}
 }
 
+// ServeHTTP godoc
+// @Summary      Проверка работоспособности сервиса
+// @Tags         system
+// @Produce      json
+// @Success      200 {object} map[string]string "status: ok"
+// @Router       /health [get]
 func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)

@@ -136,7 +136,12 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 	}
 
 	// ── ML image moderation ──
-	if h.mod != nil {
+	if h.mod == nil {
+		l.Warn("moderation skipped: service not configured, image uploaded without check",
+			zap.String("filename", header.Filename),
+			zap.Int("file_size", fileSize),
+		)
+	} else {
 		resp, err := h.mod.CheckImage(r.Context(), body, header.Filename)
 		if err != nil {
 			l.Warn("image moderation failed",
@@ -145,21 +150,25 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 				zap.Error(err),
 			)
 		} else if resp != nil {
+			reason := ""
+			if resp.Reason != nil {
+				reason = *resp.Reason
+			}
 			l.Info("image moderation result",
 				zap.String("filename", header.Filename),
 				zap.Int("file_size", fileSize),
 				zap.String("action", resp.Action),
 				zap.Bool("blocked", resp.Blocked),
-				zap.Bool("needs_review", resp.NeedsReview),
+				zap.Float64("confidence", resp.Confidence),
+				zap.String("reason", reason),
 				zap.Float64("nsfw", resp.Scores.NSFW),
 				zap.Float64("porn", resp.Scores.Porn),
 				zap.Float64("violence", resp.Scores.Violence),
 				zap.Float64("abuse", resp.Scores.Abuse),
 			)
 			if resp.Blocked {
-				reason := "inappropriate_content"
-				if resp.Reason != nil {
-					reason = *resp.Reason
+				if reason == "" {
+					reason = "inappropriate_content"
 				}
 				l.Warn("image blocked",
 					zap.String("filename", header.Filename),
@@ -167,7 +176,7 @@ func (h *UploadHandler) upload(w http.ResponseWriter, r *http.Request, userID, p
 					zap.Float64("confidence", resp.Confidence),
 				)
 				jsonError(w, http.StatusUnprocessableEntity,
-					fmt.Sprintf("image rejected: %s (nsfw=%.2f, porn=%.2f, violence=%.2f, abuse=%.2f)",
+					fmt.Sprintf("image rejected: %s (nsfw=%.4f, porn=%.4f, violence=%.4f, abuse=%.4f)",
 						reason, resp.Scores.NSFW, resp.Scores.Porn, resp.Scores.Violence, resp.Scores.Abuse))
 				return
 			}

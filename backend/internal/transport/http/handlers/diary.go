@@ -119,9 +119,10 @@ func (h *DiaryHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Summary      Обновить запись дневника
 // @Tags         diary
 // @Accept       json
+// @Produce      json
 // @Param        id path string true "ID записи"
 // @Param        body body domain.HealthDiaryEntry true "данные"
-// @Success      200
+// @Success      200 {object} domain.HealthDiaryEntry
 // @Router       /v1/diary/{id} [put]
 // @Security     BearerAuth
 func (h *DiaryHandler) Update(w http.ResponseWriter, r *http.Request) {

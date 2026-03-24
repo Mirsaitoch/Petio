@@ -93,14 +93,11 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if resp.Blocked {
-				reason := "unknown"
+				reason := "toxic_content"
 				if resp.Reason != nil {
 					reason = *resp.Reason
 				}
-				l.Warn("profile text blocked",
-					zap.String("reason", reason),
-					zap.Float64("confidence", resp.Confidence),
-				)
+				l.Warn("profile text blocked", zap.String("reason", reason))
 				jsonError(w, http.StatusUnprocessableEntity,
 					fmt.Sprintf("text rejected: %s", reason))
 				return

@@ -48,7 +48,6 @@ func NewRouter(
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Post("/auth/login", auth.Login)
-		r.Post("/auth/register", auth.Register)
 		r.Post("/auth/refresh", auth.RefreshToken)
 		r.Post("/auth/device", auth.LoginByDevice)
 		r.Get("/auth/device/accounts", auth.ListDeviceAccounts)

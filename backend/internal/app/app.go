@@ -70,7 +70,7 @@ func New(cfg *config.Config, log *zap.Logger) (*App, error) {
 	if modClient != nil {
 		log.Info("moderation enabled", zap.String("url", cfg.Moderation.BaseURL))
 	} else {
-		log.Warn("moderation disabled (MODERATION_URL not set)")
+		log.Warn("moderation disabled (MODERATION_URL not set) — uploads and posts will skip content checks")
 	}
 
 	var aiClient *yandexai.Client

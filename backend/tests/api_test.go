@@ -105,51 +105,6 @@ func TestHealth(t *testing.T) {
 
 // ──────────────────────── Auth ────────────────────────
 
-func TestAuth_Register(t *testing.T) {
-	resp := doJSON(t, "POST", "/v1/auth/register", map[string]string{
-		"email":    "ci-test@petio.dev",
-		"password": "testpass123",
-	})
-	body := readBody(t, resp)
-
-	if resp.StatusCode == http.StatusConflict {
-		// уже есть — логинимся
-		resp2 := doJSON(t, "POST", "/v1/auth/login", map[string]string{
-			"email":    "ci-test@petio.dev",
-			"password": "testpass123",
-		})
-		body = readBody(t, resp2)
-		assert.Equal(t, 200, resp2.StatusCode)
-	} else {
-		assert.Equal(t, 200, resp.StatusCode)
-	}
-
-	require.NotEmpty(t, body["token"])
-	require.NotEmpty(t, body["refreshToken"])
-	token = body["token"].(string)
-}
-
-func TestAuth_Login(t *testing.T) {
-	resp := doJSON(t, "POST", "/v1/auth/login", map[string]string{
-		"email":    "ci-test@petio.dev",
-		"password": "testpass123",
-	})
-	assert.Equal(t, 200, resp.StatusCode)
-
-	body := readBody(t, resp)
-	require.NotEmpty(t, body["token"])
-	token = body["token"].(string)
-}
-
-func TestAuth_LoginWrongPassword(t *testing.T) {
-	resp := doJSON(t, "POST", "/v1/auth/login", map[string]string{
-		"email":    "ci-test@petio.dev",
-		"password": "wrongpass",
-	})
-	assert.Equal(t, 401, resp.StatusCode)
-	resp.Body.Close()
-}
-
 func TestAuth_DeviceAuth(t *testing.T) {
 	resp := doJSON(t, "POST", "/v1/auth/device", map[string]string{
 		"device_id": "ci-test-device-001",
@@ -158,14 +113,27 @@ func TestAuth_DeviceAuth(t *testing.T) {
 
 	body := readBody(t, resp)
 	require.NotEmpty(t, body["token"])
+	require.NotEmpty(t, body["refreshToken"])
 	require.NotEmpty(t, body["userId"])
+	token = body["token"].(string)
+}
+
+func TestAuth_DeviceAuth_ExistingDevice(t *testing.T) {
+	// Повторный вход с тем же device_id — isNew = false
+	resp := doJSON(t, "POST", "/v1/auth/device", map[string]string{
+		"device_id": "ci-test-device-001",
+	})
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body := readBody(t, resp)
+	require.NotEmpty(t, body["token"])
+	assert.Equal(t, false, body["isNew"])
 }
 
 func TestAuth_RefreshToken(t *testing.T) {
-	// Сначала логин чтобы получить refresh token
-	resp := doJSON(t, "POST", "/v1/auth/login", map[string]string{
-		"email":    "ci-test@petio.dev",
-		"password": "testpass123",
+	// Device auth для получения refresh token
+	resp := doJSON(t, "POST", "/v1/auth/device", map[string]string{
+		"device_id": "ci-test-device-refresh",
 	})
 	body := readBody(t, resp)
 	refreshToken := body["refreshToken"].(string)
@@ -177,7 +145,7 @@ func TestAuth_RefreshToken(t *testing.T) {
 
 	body2 := readBody(t, resp2)
 	require.NotEmpty(t, body2["token"])
-	token = body2["token"].(string)
+	require.NotEmpty(t, body2["refreshToken"])
 }
 
 func TestAuth_ForgotPassword(t *testing.T) {
@@ -186,6 +154,16 @@ func TestAuth_ForgotPassword(t *testing.T) {
 		"email": "nonexistent@petio.dev",
 	})
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
+}
+
+func TestAuth_LoginNoEmail(t *testing.T) {
+	// Логин по email который не привязан — 401
+	resp := doJSON(t, "POST", "/v1/auth/login", map[string]string{
+		"email":    "nobody@petio.dev",
+		"password": "testpass123",
+	})
+	assert.Equal(t, 401, resp.StatusCode)
 	resp.Body.Close()
 }
 

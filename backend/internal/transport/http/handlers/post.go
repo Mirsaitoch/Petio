@@ -57,16 +57,17 @@ func (h *PostHandler) checkTexts(r *http.Request, texts ...string) error {
 			zap.String("action", resp.Action),
 			zap.Bool("blocked", resp.Blocked),
 			zap.Float64("confidence", resp.Confidence),
+			zap.Float64("toxicity", resp.Scores.Toxicity),
+			zap.Float64("severe_toxicity", resp.Scores.SevereToxicity),
+			zap.Float64("obscene", resp.Scores.Obscene),
+			zap.Float64("insult", resp.Scores.Insult),
 		)
 		if resp.Blocked {
-			reason := "unknown"
+			reason := "toxic_content"
 			if resp.Reason != nil {
 				reason = *resp.Reason
 			}
-			l.Warn("text blocked",
-				zap.String("reason", reason),
-				zap.Float64("confidence", resp.Confidence),
-			)
+			l.Warn("text blocked", zap.String("reason", reason))
 			return fmt.Errorf("text rejected: %s", reason)
 		}
 	}

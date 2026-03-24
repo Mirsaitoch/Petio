@@ -4,15 +4,10 @@
 
 BASE="http://localhost:8080/v1"
 
-echo "=== 1. Регистрация ==="
-REG=$(curl -s -X POST "$BASE/auth/register" -H "Content-Type: application/json" -d '{"email":"test@example.com","password":"password123"}')
+echo "=== 1. Device Auth ==="
+REG=$(curl -s -X POST "$BASE/auth/device" -H "Content-Type: application/json" -d '{"device_id":"test-script-device"}')
 echo "$REG"
 TOKEN=$(echo "$REG" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-if [ -z "$TOKEN" ]; then
-  echo "Повторный вход (пользователь уже есть)..."
-  REG=$(curl -s -X POST "$BASE/auth/login" -H "Content-Type: application/json" -d '{"email":"test@example.com","password":"password123"}')
-  TOKEN=$(echo "$REG" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
-fi
 echo "Token: ${TOKEN:0:20}..."
 
 echo ""
@@ -53,8 +48,11 @@ curl -s -X GET "$BASE/posts" -H "Authorization: Bearer $TOKEN"
 echo ""
 
 echo ""
-echo "=== 9. Чат ==="
-curl -s -X POST "$BASE/chat/send" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"text":"корм"}'
+echo "=== 9. Создать чат и отправить сообщение ==="
+CHAT=$(curl -s -X POST "$BASE/chats" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"title":"Тест"}')
+echo "$CHAT"
+CHAT_ID=$(echo "$CHAT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$BASE/chats/$CHAT_ID/messages" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"content":"Почему кот мурлыкает?"}'
 echo ""
 
 echo ""

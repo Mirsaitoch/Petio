@@ -28,7 +28,7 @@ func New(baseURL string) *Client {
 	}
 }
 
-// --- Common response fields ---
+// --- Text ---
 
 type TextScores struct {
 	Toxicity       float64 `json:"toxicity"`
@@ -40,6 +40,7 @@ type TextScores struct {
 	SexualExplicit float64 `json:"sexual_explicit"`
 }
 
+// TextResponse — полный ответ moderation_service /texts_scores
 type TextResponse struct {
 	Action      string     `json:"action"`
 	Blocked     bool       `json:"blocked"`
@@ -49,6 +50,7 @@ type TextResponse struct {
 	Scores      TextScores `json:"scores"`
 }
 
+// ImageScores — вложенный объект scores из ответа moderation_service
 type ImageScores struct {
 	NSFW     float64 `json:"nsfw"`
 	Safe     float64 `json:"safe"`
@@ -58,15 +60,7 @@ type ImageScores struct {
 	Abuse    float64 `json:"abuse"`
 }
 
-type ImageMeta struct {
-	EffectiveNSFW              float64 `json:"effective_nsfw"`
-	EffectiveViolenceThreshold float64 `json:"effective_violence_threshold"`
-	IsPetContent               bool    `json:"is_pet_content"`
-	IsMedicalContext           bool    `json:"is_medical_context"`
-	IsLikelySafe               bool    `json:"is_likely_safe"`
-	MaxClipScore               float64 `json:"max_clip_score"`
-}
-
+// ImageResponse соответствует ответу moderation_service /images_scores
 type ImageResponse struct {
 	Action      string      `json:"action"`
 	Blocked     bool        `json:"blocked"`
@@ -74,10 +68,7 @@ type ImageResponse struct {
 	Reason      *string     `json:"reason"`
 	Confidence  float64     `json:"confidence"`
 	Scores      ImageScores `json:"scores"`
-	Meta        ImageMeta   `json:"meta"`
 }
-
-// --- Text ---
 
 func (c *Client) CheckText(ctx context.Context, text string) (*TextResponse, error) {
 	if c == nil {
@@ -118,14 +109,16 @@ func (c *Client) CheckText(ctx context.Context, text string) (*TextResponse, err
 		return nil, fmt.Errorf("moderation: decode: %w", err)
 	}
 
-	metrics.ModerationRequestsTotal.WithLabelValues("text", result.Action).Inc()
+	action := "pass"
 	if result.Blocked {
+		action = "block"
 		reason := "unknown"
 		if result.Reason != nil {
 			reason = *result.Reason
 		}
 		metrics.ModerationBlockedTotal.WithLabelValues("text", reason).Inc()
 	}
+	metrics.ModerationRequestsTotal.WithLabelValues("text", action).Inc()
 
 	return &result, nil
 }
@@ -191,7 +184,11 @@ func (c *Client) CheckImage(ctx context.Context, imageBytes []byte, filename str
 		return nil, fmt.Errorf("moderation: decode: %w", err)
 	}
 
-	metrics.ModerationRequestsTotal.WithLabelValues("image", result.Action).Inc()
+	action := "pass"
+	if result.Blocked {
+		action = "block"
+	}
+	metrics.ModerationRequestsTotal.WithLabelValues("image", action).Inc()
 	if result.Blocked {
 		reason := "unknown"
 		if result.Reason != nil {

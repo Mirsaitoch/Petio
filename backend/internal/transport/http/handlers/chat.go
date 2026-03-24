@@ -121,6 +121,7 @@ func (h *ChatHandler) GetChat(w http.ResponseWriter, r *http.Request) {
 // @Summary      Обновить название чата
 // @Tags         chat
 // @Accept       json
+// @Produce      json
 // @Param        id path string true "Chat ID"
 // @Param        body body object true "title"
 // @Success      200

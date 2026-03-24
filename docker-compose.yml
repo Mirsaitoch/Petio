@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   prometheus:
     image: prom/prometheus:latest
@@ -29,7 +34,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/petio.json
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
 
@@ -44,8 +51,10 @@ services:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/petio?sslmode=disable
       MODERATION_URL: http://moderation_api:8000
     depends_on:
-      - postgres
-      - prometheus
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
     labels:
       co.elastic.logs/enabled: "true"
       co.elastic.logs/json.keys_under_root: "true"
@@ -92,9 +101,44 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  triton:
+    build:
+      context: ./triton
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8000"
+      - "8011:8001"
+      - "8012:8002"
+    env_file:
+      - ./triton/.env
+    volumes:
+      - triton_models:/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 360s
+
+
+  moderation_api:
+    build:
+      context: ./moderation_service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      TRITON_URL: "triton:8001"
+      TRITON_HTTP_URL: "http://triton:8000"
+      TOKENIZERS_PATH: "/app/tokenizers"
+    depends_on:
+      triton:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
   es_data:
   filebeat_data:
+  triton_models:

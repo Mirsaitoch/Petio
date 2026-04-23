@@ -80,3 +80,7 @@ final class AuthManager: ObservableObject {
         }
     }
 }
+
+extension AuthManager {
+    static let shared = AuthManager()
+}

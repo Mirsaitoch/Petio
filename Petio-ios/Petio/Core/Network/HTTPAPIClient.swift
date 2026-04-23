@@ -215,18 +215,24 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     // MARK: - Posts
 
-    func fetchPosts(club: String?) async throws -> [Post] {
+    func fetchPosts(
+        club: String?,
+        limit: Int = 20,
+        afterID: String? = nil,
+        beforeID: String? = nil
+    ) async throws -> PostsResponse {
         var qi: [URLQueryItem] = []
-        if let club = club, club != "Все" { qi = [URLQueryItem(name: "club", value: club)] }
-        print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', queryItems=\(qi.map { "\($0.name)=\($0.value ?? "")" })")
+        if limit != 0 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if let afterID = afterID { qi.append(URLQueryItem(name: "after_id", value: afterID)) }
+        if let beforeID = beforeID { qi.append(URLQueryItem(name: "before_id", value: beforeID)) }
+        if let club = club, club != "Все" { qi.append(URLQueryItem(name: "club", value: club)) }
+
+        print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', limit=\(limit), afterID=\(afterID ?? "nil"), beforeID=\(beforeID ?? "nil")")
+
         do {
-            let posts: [Post] = try await perform(try makeRequest(path: "/posts", queryItems: qi))
-            print("[POSTS] fetchPosts успех: получено \(posts.count) постов")
-            for (i, post) in posts.prefix(3).enumerated() {
-                print("[POSTS]   [\(i)] id=\(post.id), author='\(post.author)', content='\(post.content.prefix(50))', image=\(post.image ?? "nil"), likes=\(post.likes)")
-            }
-            if posts.count > 3 { print("[POSTS]   ... и ещё \(posts.count - 3) постов") }
-            return posts
+            let response: PostsResponse = try await perform(try makeRequest(path: "/posts", queryItems: qi))
+            print("[POSTS] fetchPosts успех: получено \(response.posts.count) постов, hasMore=\(response.hasMore), hasNew=\(response.hasNew)")
+            return response
         } catch {
             print("[POSTS] fetchPosts ошибка: \(error)")
             throw error
@@ -321,4 +327,8 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         try await perform(try makeRequest(path: "/profile", method: "PUT", body: encode(profile)))
     }
+}
+
+extension HTTPAPIClient {
+    static let shared = HTTPAPIClient(authManager: AuthManager.shared)
 }

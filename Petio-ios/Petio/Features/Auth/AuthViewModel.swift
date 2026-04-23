@@ -13,7 +13,7 @@ final class AuthViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let authManager: AuthManager
-    private let baseURL = "http://localhost:8080/v1"
+    private let baseURL = "http://158.160.235.224:8080/v1"
 
     init(authManager: AuthManager) {
         self.authManager = authManager

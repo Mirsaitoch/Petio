@@ -14,7 +14,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     private let authManager: AuthManager
     private let cacheManager = CacheManager()
 
-    init(authManager: AuthManager, baseURL: String = "http://158.160.235.224/v1") {
+    init(authManager: AuthManager, baseURL: String = "http://158.160.235.224:8080/v1") {
         self.authManager = authManager
         self.baseURL = baseURL
     }

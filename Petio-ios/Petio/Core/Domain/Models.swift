@@ -145,6 +145,20 @@ struct Post: Identifiable, Equatable, Codable {
     var liked: Bool
 }
 
+// MARK: - Feed Pagination
+
+struct PostsResponse: Decodable {
+    let posts: [Post]
+    let hasMore: Bool    // есть ли еще старых постов (при скролле вниз)
+    let hasNew: Bool     // есть ли новые посты сверху (при pull-to-refresh)
+
+    enum CodingKeys: String, CodingKey {
+        case posts
+        case hasMore = "has_more"
+        case hasNew = "has_new"
+    }
+}
+
 // MARK: - User
 
 struct UserProfile: Equatable, Codable {

@@ -20,7 +20,7 @@ func parsePostDate(_ timestamp: String) -> Date? {
 struct FeedView: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var authManager: AuthManager
-    @State private var selectedClub = "Все"
+    @StateObject private var viewModel: FeedViewModel
     @State private var newestFirst = true
     @State private var showNewPost = false
     @State private var expandedComments: Set<String> = []
@@ -31,8 +31,13 @@ struct FeedView: View {
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
+    init(apiClient: APIClientProtocol? = nil) {
+        let client = apiClient ?? HTTPAPIClient(authManager: AuthManager())
+        _viewModel = StateObject(wrappedValue: FeedViewModel(apiClient: client))
+    }
+
     private var filteredPosts: [Post] {
-        let base = selectedClub == "Все" ? app.posts : app.posts.filter { $0.club == selectedClub }
+        let base = viewModel.selectedClub == "Все" ? viewModel.posts : viewModel.posts.filter { $0.club == viewModel.selectedClub }
         return base.sorted {
             let d0 = parsePostDate($0.timestamp) ?? .distantPast
             let d1 = parsePostDate($1.timestamp) ?? .distantPast
@@ -43,16 +48,22 @@ struct FeedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            if app.postsLoadFailed && app.posts.isEmpty {
+            if viewModel.error != nil && viewModel.posts.isEmpty {
                 errorView
             } else {
                 ChipGroup(
                     haveAdditionalPadding: true,
                     labels: clubs,
-                    selection: $selectedClub
+                    selection: $viewModel.selectedClub
                 )
+                .onChange(of: viewModel.selectedClub) {
+                    Task { await viewModel.selectClub(viewModel.selectedClub) }
+                }
                 ScrollView(showsIndicators: false) {
                     feedContent
+                }
+                .refreshable {
+                    await viewModel.refresh()
                 }
                 .overlay(alignment: .top) {
                     LinearGradient(
@@ -83,6 +94,11 @@ struct FeedView: View {
                     showNewPost = false
                 }
             } onCancel: { showNewPost = false }
+        }
+        .onAppear {
+            if viewModel.posts.isEmpty {
+                Task { await viewModel.loadInitial() }
+            }
         }
     }
 
@@ -161,7 +177,7 @@ struct FeedView: View {
                     .multilineTextAlignment(.center)
             }
             Button {
-                Task { await app.loadPosts() }
+                Task { await viewModel.loadInitial() }
             } label: {
                 Label("Повторить", systemImage: "arrow.clockwise")
                     .font(.system(size: 15, weight: .medium))
@@ -181,7 +197,7 @@ struct FeedView: View {
 
     @ViewBuilder
     private var feedContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        LazyVStack(alignment: .leading, spacing: 10) {
             Color.clear.frame(height: Self.topFadeHeight)
             ForEach(Array(filteredPosts.enumerated()), id: \.element.id) { index, post in
                 PostCard(
@@ -231,6 +247,24 @@ struct FeedView: View {
                     removal: .opacity.combined(with: .move(edge: .leading))
                 ))
                 .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(Double(min(index, 8)) * 0.03), value: filteredPosts.map(\.id))
+                .onAppear {
+                    // Trigger infinite scroll when approaching the last 3 posts
+                    if index >= filteredPosts.count - 3 && viewModel.hasMore {
+                        Task { await viewModel.loadMore() }
+                    }
+                }
+            }
+
+            if viewModel.isLoading {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .tint(PetCareTheme.primary)
+                    Text("Загрузка...")
+                        .font(.system(size: 14))
+                        .foregroundColor(PetCareTheme.muted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
 
             if filteredPosts.isEmpty {

@@ -229,9 +229,9 @@ final class AppState: ObservableObject {
         postsLoadFailed = false
         print("[POSTS] loadPosts: начало загрузки")
         do {
-            let fetched = try await api.fetchPosts(club: nil)
-            posts = fetched
-            print("[POSTS] loadPosts: загружено \(fetched.count) постов")
+            let response = try await api.fetchPosts(club: nil, limit: 20, afterID: nil, beforeID: nil)
+            posts = response.posts
+            print("[POSTS] loadPosts: загружено \(response.posts.count) постов")
         } catch {
             print("[POSTS] loadPosts: ошибка — \(error)")
             if posts.isEmpty {

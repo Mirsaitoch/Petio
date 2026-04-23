@@ -37,10 +37,18 @@ final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func fetchArticles() async throws -> [Article] { MockData.articles }
 
-    func fetchPosts(club: String?) async throws -> [Post] {
-        let list = MockData.posts
-        guard let club = club, club != "Все" else { return list }
-        return list.filter { $0.club == club }
+    func fetchPosts(
+        club: String?,
+        limit: Int = 20,
+        afterID: String? = nil,
+        beforeID: String? = nil
+    ) async throws -> PostsResponse {
+        var list = MockData.posts
+        if let club = club, club != "Все" {
+            list = list.filter { $0.club == club }
+        }
+        let filtered = Array(list.prefix(limit))
+        return PostsResponse(posts: filtered, hasMore: list.count > limit, hasNew: false)
     }
     func addPost(_ post: Post) async throws -> Post { post }
     func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post { post }

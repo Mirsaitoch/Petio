@@ -6,6 +6,7 @@ final class FeedViewModelTests: XCTestCase {
 
     // MARK: - Tests
 
+    @MainActor
     func testLoadInitial_FetchesPostsAndSetsHasMore() async throws {
         let mockClient = MockAPIClient()
         mockClient.postsToReturn = [
@@ -25,6 +26,7 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.error)
     }
 
+    @MainActor
     func testLoadMore_AppendsPostsWithAfterId() async throws {
         let mockClient = MockAPIClient()
 
@@ -54,6 +56,7 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertEqual(mockClient.lastAfterId, "1")
     }
 
+    @MainActor
     func testRefresh_LoadsNewPostsWithBeforeId() async throws {
         let mockClient = MockAPIClient()
 
@@ -81,6 +84,7 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertEqual(mockClient.lastBeforeId, "2")
     }
 
+    @MainActor
     func testSelectClub_ResetsStateAndLoadsInitial() async throws {
         let mockClient = MockAPIClient()
 
@@ -109,6 +113,7 @@ final class FeedViewModelTests: XCTestCase {
         XCTAssertEqual(mockClient.lastClub, "Кошки")
     }
 
+    @MainActor
     func testLoadInitial_HandlesError() async throws {
         let mockClient = MockAPIClient()
         mockClient.shouldThrowError = true

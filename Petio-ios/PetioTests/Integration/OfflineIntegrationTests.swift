@@ -3,8 +3,9 @@ import XCTest
 
 class OfflineIntegrationTests: XCTestCase {
     var cache: CacheManager!
-    var monitor: NetworkMonitor!
+    var monitor: NetworkMonitor?
 
+    @MainActor
     override func setUp() {
         super.setUp()
         cache = CacheManager()
@@ -25,15 +26,21 @@ class OfflineIntegrationTests: XCTestCase {
         XCTAssertEqual(loaded.first?.name, "Тор")
     }
 
+    @MainActor
     func testNetworkMonitorStartsWithInitialState() {
         // На симуляторе начальное состояние зависит от сети
         // Этот тест просто проверяет инициализацию
-        XCTAssertNotNil(monitor.isOnline)
+        XCTAssertNotNil(monitor?.isOnline)
     }
 
+    @MainActor
     func testOfflineIndicatorViewHidesWhenOnline() {
         // Когда networkMonitor.isOnline = true
         // OfflineIndicatorView не должен быть виден
+        guard let monitor = monitor else {
+            XCTFail("Monitor not initialized")
+            return
+        }
         let view = OfflineIndicatorView()
             .environmentObject(monitor)
 

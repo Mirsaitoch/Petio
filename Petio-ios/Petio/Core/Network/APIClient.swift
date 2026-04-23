@@ -34,7 +34,12 @@ protocol APIClientProtocol: Sendable {
 
     func fetchArticles() async throws -> [Article]
 
-    func fetchPosts(club: String?) async throws -> [Post]
+    func fetchPosts(
+        club: String?,
+        limit: Int,
+        afterID: String?,
+        beforeID: String?
+    ) async throws -> PostsResponse
     func addPost(_ post: Post) async throws -> Post
     func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post
     func likePost(id: String, liked: Bool) async throws

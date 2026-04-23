@@ -125,7 +125,7 @@ final class FeedViewModelTests: XCTestCase {
 
 // MARK: - MockAPIClient
 
-final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
+final class MockAPIClient: APIClientProtocol {
     var postsToReturn: [Post] = []
     var hasMoreToReturn = false
     var hasNewToReturn = false

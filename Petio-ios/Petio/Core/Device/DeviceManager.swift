@@ -2,8 +2,7 @@ import Foundation
 import Security
 
 final class DeviceManager {
-    private let keychainService = "com.petio.app"
-    private let keychainAccount = "deviceID"
+    private let keychainKey = "com.petio.app.device_id"
 
     nonisolated private static let shared = DeviceManager()
 
@@ -24,8 +23,7 @@ final class DeviceManager {
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
+            kSecAttrGeneric as String: keychainKey.data(using: .utf8) ?? Data()
         ]
 
         SecItemDelete(query as CFDictionary)
@@ -42,8 +40,7 @@ final class DeviceManager {
     private func loadFromKeychain() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrGeneric as String: keychainKey.data(using: .utf8) ?? Data(),
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -62,8 +59,7 @@ final class DeviceManager {
     func deleteDeviceID() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
+            kSecAttrGeneric as String: keychainKey.data(using: .utf8) ?? Data()
         ]
         SecItemDelete(query as CFDictionary)
     }

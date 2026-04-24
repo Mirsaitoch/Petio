@@ -61,6 +61,9 @@ final class DeviceManager {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrGeneric as String: keychainKey.data(using: .utf8) ?? Data()
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw NSError(domain: "DeviceManager", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to delete device_id from Keychain"])
+        }
     }
 }

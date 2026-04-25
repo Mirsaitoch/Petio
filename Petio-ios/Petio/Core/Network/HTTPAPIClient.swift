@@ -121,7 +121,9 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     private func refreshAccessToken() async throws -> String {
+        print("[API] refreshAccessToken: starting")
         guard let refreshToken = authManager.getRefreshToken() else {
+            print("[API] refreshAccessToken: no refreshToken found")
             throw APIError.server(401)
         }
 
@@ -142,12 +144,16 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             includeAuth: false
         )
 
+        print("[API] refreshAccessToken: sending request")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
+            print("[API] refreshAccessToken: bad response")
             throw APIError.network(URLError(.badServerResponse))
         }
 
+        print("[API] refreshAccessToken: got status \(http.statusCode)")
         guard (200..<300).contains(http.statusCode) else {
+            print("[API] refreshAccessToken: refresh failed with status \(http.statusCode)")
             throw APIError.server(http.statusCode)
         }
 
@@ -155,8 +161,10 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             let refreshResponse = try JSONDecoder().decode(RefreshResponse.self, from: data)
             authManager.saveToken(refreshResponse.token)
             authManager.saveRefreshToken(refreshResponse.refreshToken)
+            print("[API] refreshAccessToken: success, new token saved")
             return refreshResponse.token
         } catch {
+            print("[API] refreshAccessToken: decoding failed - \(error)")
             throw APIError.decoding(error)
         }
     }

@@ -46,10 +46,12 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+        logRequest(request)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.network(URLError(.badServerResponse))
         }
+        logResponse(http, data)
         if http.statusCode == 401 {
             // Attempt to refresh token
             if let _ = try? await refreshAccessToken() {
@@ -408,6 +410,26 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         try await perform(try makeRequest(path: "/profile", method: "PUT", body: encode(profile)))
+    }
+}
+
+    private func logRequest(_ request: URLRequest) {
+        let method = request.httpMethod ?? "GET"
+        let url = request.url?.absoluteString ?? "unknown"
+        let hasAuth = request.value(forHTTPHeaderField: "Authorization") != nil
+        print("[API] \(method) \(url) \(hasAuth ? "(auth)" : "(no auth)")")
+        if let body = request.httpBody, let bodyStr = String(data: body, encoding: .utf8) {
+            print("[API] Body: \(bodyStr)")
+        }
+    }
+
+    private func logResponse(_ response: HTTPURLResponse, _ data: Data) {
+        let status = response.statusCode
+        let url = response.url?.absoluteString ?? "unknown"
+        print("[API] Response \(status) from \(url)")
+        if let responseStr = String(data: data, encoding: .utf8) {
+            print("[API] Data: \(responseStr.prefix(200))")
+        }
     }
 }
 

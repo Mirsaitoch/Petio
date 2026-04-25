@@ -53,19 +53,24 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         do {
             let deviceID = try await deviceManager.getDeviceID()
+            print("[AUTH] deviceLogin: deviceID=\(deviceID)")
             let response = try await deviceLoginRequest(deviceID: deviceID)
+            print("[AUTH] deviceLogin: success, isNew=\(response.isNew), userId=\(response.userId)")
             authManager.saveToken(response.token)
             authManager.saveRefreshToken(response.refreshToken)
 
             if response.isNew {
+                print("[AUTH] New account detected, showing email linking prompt")
                 // New account - must verify email before full authentication
                 showEmailLinking = true
                 updateAuth(false)  // Not authenticated until email verified
             } else {
+                print("[AUTH] Existing account, authenticating immediately")
                 // Existing account - already authenticated
                 updateAuth(true)
             }
         } catch {
+            print("[AUTH] deviceLogin failed: \(error)")
             errorMessage = describe(error)
             updateAuth(false)
         }
@@ -102,11 +107,14 @@ final class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
+            print("[AUTH] linkEmail: sending email=\(email)")
             try await linkEmailRequest(email: email, password: password)
+            print("[AUTH] linkEmail: success, showing verification screen")
             // Store email and move to verification screen
             currentEmail = email
             isVerifyingEmail = true
         } catch {
+            print("[AUTH] linkEmail failed: \(error)")
             errorMessage = describe(error)
         }
         isLoading = false
@@ -116,12 +124,15 @@ final class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
+            print("[AUTH] verifyEmail: sending code=\(code)")
             try await verifyEmailRequest(code: code)
+            print("[AUTH] verifyEmail: success, authenticating user")
             // Email verified successfully - complete authentication
             isVerifyingEmail = false
             showEmailLinking = false
             updateAuth(true)
         } catch {
+            print("[AUTH] verifyEmail failed: \(error)")
             errorMessage = describe(error)
         }
         isLoading = false

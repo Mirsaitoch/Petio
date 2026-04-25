@@ -56,9 +56,14 @@ final class AuthViewModel: ObservableObject {
             let response = try await deviceLoginRequest(deviceID: deviceID)
             authManager.saveToken(response.token)
             authManager.saveRefreshToken(response.refreshToken)
-            updateAuth(true)
+
             if response.isNew {
+                // New account - must verify email before full authentication
                 showEmailLinking = true
+                updateAuth(false)  // Not authenticated until email verified
+            } else {
+                // Existing account - already authenticated
+                updateAuth(true)
             }
         } catch {
             errorMessage = describe(error)

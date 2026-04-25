@@ -50,8 +50,30 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             throw APIError.network(URLError(.badServerResponse))
         }
         if http.statusCode == 401 {
-            authManager.deleteToken()
-            throw APIError.server(401)
+            // Attempt to refresh token
+            if let _ = try? await refreshAccessToken() {
+                // Refresh succeeded, retry the request with new token
+                var retryRequest = request
+                if let newToken = authManager.getToken() {
+                    retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                }
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else {
+                    throw APIError.network(URLError(.badServerResponse))
+                }
+                guard (200..<300).contains(retryHttp.statusCode) else {
+                    throw APIError.server(retryHttp.statusCode)
+                }
+                do {
+                    return try JSONDecoder().decode(T.self, from: retryData)
+                } catch {
+                    throw APIError.decoding(error)
+                }
+            } else {
+                // Refresh failed, delete token and throw
+                authManager.deleteToken()
+                throw APIError.server(401)
+            }
         }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(http.statusCode)
@@ -69,11 +91,68 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             throw APIError.network(URLError(.badServerResponse))
         }
         if http.statusCode == 401 {
-            authManager.deleteToken()
-            throw APIError.server(401)
+            // Attempt to refresh token
+            if let _ = try? await refreshAccessToken() {
+                // Refresh succeeded, retry the request with new token
+                var retryRequest = request
+                if let newToken = authManager.getToken() {
+                    retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                }
+                let (_, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else {
+                    throw APIError.network(URLError(.badServerResponse))
+                }
+                guard (200..<300).contains(retryHttp.statusCode) else {
+                    throw APIError.server(retryHttp.statusCode)
+                }
+                return
+            } else {
+                // Refresh failed, delete token and throw
+                authManager.deleteToken()
+                throw APIError.server(401)
+            }
         }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(http.statusCode)
+        }
+    }
+
+    private func refreshAccessToken() async throws -> String {
+        guard let refreshToken = authManager.getRefreshToken() else {
+            throw APIError.server(401)
+        }
+
+        struct RefreshRequest: Encodable {
+            let refreshToken: String
+        }
+
+        struct RefreshResponse: Decodable {
+            let token: String
+            let refreshToken: String
+        }
+
+        let request = try makeRequest(
+            path: "/auth/refresh",
+            method: "POST",
+            body: encode(RefreshRequest(refreshToken: refreshToken))
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.network(URLError(.badServerResponse))
+        }
+
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(http.statusCode)
+        }
+
+        do {
+            let refreshResponse = try JSONDecoder().decode(RefreshResponse.self, from: data)
+            authManager.saveToken(refreshResponse.token)
+            authManager.saveRefreshToken(refreshResponse.refreshToken)
+            return refreshResponse.token
+        } catch {
+            throw APIError.decoding(error)
         }
     }
 

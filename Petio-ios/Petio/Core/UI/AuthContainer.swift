@@ -29,9 +29,14 @@ struct AuthContainer: View {
                 // Main app flow
                 AppTabView()
                     .task {
+                        print("[AUTH] AppTabView task: starting loadAll()")
                         await appState.loadAll()
+                        print("[AUTH] AppTabView task: loadAll() completed")
                     }
             }
+        }
+        .onAppear {
+            print("[AUTH] AuthContainer appeared, isAuthenticated=\(authViewModel.isAuthenticated)")
         }
     }
 }

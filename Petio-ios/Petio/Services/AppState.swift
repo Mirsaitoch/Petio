@@ -129,6 +129,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Load from API (business logic)
     func loadAll() async {
+        print("[STATE] loadAll: Phase 1 starting")
         // Phase 1: load independent data in parallel
         async let p: () = loadPets()
         async let r: () = loadReminders()
@@ -136,15 +137,18 @@ final class AppState: ObservableObject {
         async let po: () = loadPosts()
         async let u: () = loadProfile()
         _ = await (p, r, a, po, u)
+        print("[STATE] loadAll: Phase 1 completed")
 
         if selectedPetId.isEmpty, let first = pets.first {
             selectedPetId = first.id
         }
 
         // Phase 2: load pet-dependent data (needs pets to be loaded first)
+        print("[STATE] loadAll: Phase 2 starting")
         async let w: () = loadWeightHistory()
         async let d: () = loadDiary()
         _ = await (w, d)
+        print("[STATE] loadAll: Phase 2 completed")
     }
 
     func loadPets() async {

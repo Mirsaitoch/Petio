@@ -9,87 +9,87 @@ import Foundation
 import Security
 
 final class AuthManager: ObservableObject {
-    @Published private(set) var isAuthenticated: Bool
+    @Published private(set) var isAuthenticated: Bool = false
 
-    private let keychainService = "com.petio.app"
-    private let keychainAccount = "authToken"
-    private let keychainRefreshTokenAccount = "refreshToken"
+    private let keychainTokenKey = "com.petio.app.token"
+    private let keychainRefreshTokenKey = "com.petio.app.refreshToken"
 
     init() {
-        isAuthenticated = AuthManager.readFromKeychain(service: "com.petio.app", account: "authToken") != nil
+        let hasToken = AuthManager.readFromKeychain(keychainKey: "com.petio.app.token") != nil
+        self.isAuthenticated = hasToken
     }
 
     /// Save token to Keychain and mark as authenticated.
     func saveToken(_ token: String) {
         guard let data = token.data(using: .utf8) else { return }
+        guard let genericData = keychainTokenKey.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
+            kSecAttrGeneric as String: genericData
         ]
         SecItemDelete(query as CFDictionary)
         var attrs = query
         attrs[kSecValueData as String] = data
-        SecItemAdd(attrs as CFDictionary, nil)
-        updateAuth(true)
+        let status = SecItemAdd(attrs as CFDictionary, nil)
+        if status == errSecSuccess || status == errSecDuplicateItem {
+            updateAuth(true)
+        }
     }
 
     /// Read token from Keychain. Thread-safe (Keychain reads are safe from any thread).
     func getToken() -> String? {
-        loadFromKeychain()
+        AuthManager.readFromKeychain(keychainKey: keychainTokenKey)
     }
 
     /// Save refresh token to Keychain.
     func saveRefreshToken(_ refreshToken: String) {
         guard let data = refreshToken.data(using: .utf8) else { return }
+        guard let genericData = keychainRefreshTokenKey.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainRefreshTokenAccount
+            kSecAttrGeneric as String: genericData
         ]
         SecItemDelete(query as CFDictionary)
         var attrs = query
         attrs[kSecValueData as String] = data
-        SecItemAdd(attrs as CFDictionary, nil)
+        let _ = SecItemAdd(attrs as CFDictionary, nil)
     }
 
     /// Read refresh token from Keychain. Thread-safe.
     func getRefreshToken() -> String? {
-        AuthManager.readFromKeychain(service: keychainService, account: keychainRefreshTokenAccount)
+        AuthManager.readFromKeychain(keychainKey: keychainRefreshTokenKey)
     }
 
     /// Remove both token and refresh token from Keychain and mark as unauthenticated.
     func deleteToken() {
         // Delete access token
-        let tokenQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount
-        ]
-        SecItemDelete(tokenQuery as CFDictionary)
+        if let tokenGenericData = keychainTokenKey.data(using: .utf8) {
+            let tokenQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrGeneric as String: tokenGenericData
+            ]
+            SecItemDelete(tokenQuery as CFDictionary)
+        }
 
         // Delete refresh token
-        let refreshTokenQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainRefreshTokenAccount
-        ]
-        SecItemDelete(refreshTokenQuery as CFDictionary)
+        if let refreshTokenGenericData = keychainRefreshTokenKey.data(using: .utf8) {
+            let refreshTokenQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrGeneric as String: refreshTokenGenericData
+            ]
+            SecItemDelete(refreshTokenQuery as CFDictionary)
+        }
 
         updateAuth(false)
     }
 
     // MARK: - Private
 
-    private func loadFromKeychain() -> String? {
-        AuthManager.readFromKeychain(service: keychainService, account: keychainAccount)
-    }
-
-    private static func readFromKeychain(service: String, account: String) -> String? {
+    private static func readFromKeychain(keychainKey: String) -> String? {
+        guard let genericData = keychainKey.data(using: .utf8) else { return nil }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrGeneric as String: genericData,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]

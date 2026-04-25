@@ -4,7 +4,7 @@ import Security
 final class DeviceManager {
     private let keychainKey = "com.petio.app.device_id"
 
-    nonisolated private static let shared = DeviceManager()
+    static let shared = DeviceManager()
 
     func getDeviceID() async throws -> String {
         if let existing = loadFromKeychain() {

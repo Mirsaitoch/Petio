@@ -2,8 +2,8 @@
 //  ContentView.swift
 //  Petio
 //
-//  Entry point. Always shows AppTabView — no auth gate.
-//  AuthView is presented as a sheet from AuthPromptSheet or ProfileView.
+//  Entry point with device-based auth flow.
+//  Routes to DeviceLoginView → EmailLinkingPromptView → AppTabView
 //
 
 import SwiftUI
@@ -12,23 +12,11 @@ struct ContentView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var appState: AppState
 
+    private let authViewModel = AuthViewModel(authManager: AuthManager.shared)
+
     var body: some View {
-        AppTabView()
-            .task {
-                await appState.loadAll()
-            }
-            .onChange(of: authManager.isAuthenticated) { _, isAuth in
-                if isAuth {
-                    // Clear guest profile so it doesn't leak into authenticated session
-                    LocalStorage.delete(file: .profile)
-                    Task {
-                        await appState.loadAll()
-                    }
-                } else {
-                    appState.resetUserSession()
-                    Task { await appState.loadAll() }
-                }
-            }
+        AuthContainer(authViewModel: authViewModel)
+            .environmentObject(appState)
     }
 }
 

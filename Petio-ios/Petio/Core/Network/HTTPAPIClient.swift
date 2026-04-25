@@ -411,7 +411,6 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         try await perform(try makeRequest(path: "/profile", method: "PUT", body: encode(profile)))
     }
-}
 
     private func logRequest(_ request: URLRequest) {
         let method = request.httpMethod ?? "GET"

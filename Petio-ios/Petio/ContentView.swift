@@ -12,10 +12,9 @@ struct ContentView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var appState: AppState
 
-    private let authViewModel = AuthViewModel(authManager: AuthManager.shared)
-
     var body: some View {
-        AuthContainer(authViewModel: authViewModel)
+        let authViewModel = AuthViewModel(authManager: authManager)
+        return AuthContainer(authViewModel: authViewModel)
             .environmentObject(appState)
     }
 }

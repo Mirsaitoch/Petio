@@ -15,7 +15,6 @@ struct AccountInfo: Codable {
 
 @MainActor
 final class AuthViewModel: ObservableObject {
-    @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var deviceAccounts: [AccountInfo] = []
@@ -23,13 +22,17 @@ final class AuthViewModel: ObservableObject {
     @Published var showEmailLinking = false
     @Published var isVerifyingEmail = false  // Show email verification screen
 
-    private let authManager: AuthManager
+    let authManager: AuthManager  // Use authManager's isAuthenticated, not own
     private let deviceManager = DeviceManager.shared
     private let baseURL = "http://158.160.235.224/v1"
 
     init(authManager: AuthManager) {
         self.authManager = authManager
-        self.isAuthenticated = authManager.getToken() != nil
+        print("[AUTH] AuthViewModel.init: authManager.isAuthenticated=\(authManager.isAuthenticated)")
+    }
+
+    var isAuthenticated: Bool {
+        authManager.isAuthenticated
     }
 
     // MARK: - Device Login
@@ -267,7 +270,14 @@ final class AuthViewModel: ObservableObject {
     }
 
     private func updateAuth(_ authenticated: Bool) {
-        isAuthenticated = authenticated
+        print("[AUTH] updateAuth: setting to \(authenticated)")
+        if authenticated {
+            // Token is already saved by saveToken(), this just ensures consistency
+            print("[AUTH] updateAuth: ensuring authManager.isAuthenticated = true")
+        } else {
+            authManager.deleteToken()
+        }
+        print("[AUTH] updateAuth: authManager.isAuthenticated is now \(authManager.isAuthenticated)")
     }
 
     // MARK: - Utility (for legacy views)

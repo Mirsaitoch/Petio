@@ -24,7 +24,7 @@ final class AuthViewModel: ObservableObject {
 
     private let authManager: AuthManager
     private let deviceManager = DeviceManager.shared
-    private let baseURL = "http://158.160.235.224:8080/v1"
+    private let baseURL = "http://158.160.235.224/v1"
 
     init(authManager: AuthManager) {
         self.authManager = authManager

@@ -7,7 +7,7 @@
 import Foundation
 
 enum Endpoints {
-    static var baseURL: URL? { URL(string: "http://158.160.235.224:8080/v1") }
+    static var baseURL: URL? { URL(string: "http://158.160.235.224/v1") }
 
     // Питомцы
     static func pets() -> String { "/pets" }

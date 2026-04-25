@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Petio
 
 struct AccountInfo: Codable {
     let userId: String

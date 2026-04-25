@@ -33,6 +33,20 @@ final class AuthViewModel: ObservableObject {
 
     // MARK: - Device Login
 
+    // Legacy method for backward compatibility - routes to device login
+    func register(email: String, password: String, username: String) async {
+        // Device-based auth doesn't use email/password registration
+        // Just do device login instead
+        await deviceLogin()
+    }
+
+    // Legacy method for backward compatibility
+    func login(email: String, password: String) async {
+        // Device-based auth doesn't use email/password login
+        // Just do device login instead
+        await deviceLogin()
+    }
+
     func deviceLogin() async {
         isLoading = true
         errorMessage = nil
@@ -232,6 +246,15 @@ final class AuthViewModel: ObservableObject {
 
     private func updateAuth(_ authenticated: Bool) {
         isAuthenticated = authenticated
+    }
+
+    // MARK: - Utility (for legacy views)
+
+    static func generateZooUsername() -> String {
+        let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk", "puma", "lynx"]
+        let animal = animals.randomElement() ?? "pet"
+        let number = Int.random(in: 10000...99999)
+        return "\(animal)-\(number)"
     }
 }
 

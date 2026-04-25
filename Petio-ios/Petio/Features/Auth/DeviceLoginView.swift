@@ -13,32 +13,20 @@ struct DeviceLoginView: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-
-            VStack(spacing: 16) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.blue)
-
-                Text("Один момент")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("Настраиваем ваш аккаунт...")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
+            
             ProgressView()
                 .scaleEffect(1.5)
-
+            
             Spacer()
         }
         .padding()
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .onAppear {
+            print("[DEVICE_LOGIN_VIEW] onAppear: triggering deviceLogin")
             Task {
+                print("[DEVICE_LOGIN_VIEW] Task: calling deviceLogin()")
                 await authViewModel.deviceLogin()
+                print("[DEVICE_LOGIN_VIEW] Task: deviceLogin() returned")
             }
         }
     }

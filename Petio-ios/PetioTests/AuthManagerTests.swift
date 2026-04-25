@@ -11,7 +11,7 @@ final class AuthManagerTests: XCTestCase {
         sut.deleteToken()
     }
 
-    // MARK: - Token Tests (существующая функциональность)
+    // MARK: - Token Tests
 
     func testSaveToken_StoresTokenInKeychain() {
         let testToken = "test.jwt.token"
@@ -24,16 +24,13 @@ final class AuthManagerTests: XCTestCase {
 
     func testGetToken_ReturnsNilWhenNoTokenSaved() {
         let retrieved = sut.getToken()
-
         XCTAssertNil(retrieved)
     }
 
     func testDeleteToken_RemovesToken() {
         sut.saveToken("test.jwt.token")
-
         sut.deleteToken()
         let retrieved = sut.getToken()
-
         XCTAssertNil(retrieved)
     }
 
@@ -50,7 +47,6 @@ final class AuthManagerTests: XCTestCase {
 
     func testGetRefreshToken_ReturnsNilWhenNoRefreshTokenSaved() {
         let retrieved = sut.getRefreshToken()
-
         XCTAssertNil(retrieved)
     }
 
@@ -65,7 +61,7 @@ final class AuthManagerTests: XCTestCase {
         XCTAssertEqual(retrieved, secondToken)
     }
 
-    // MARK: - DeleteToken Tests (обновленная версия)
+    // MARK: - DeleteToken Tests
 
     func testDeleteToken_RemovesBothTokenAndRefreshToken() {
         let token = "test.jwt.token"
@@ -106,10 +102,53 @@ final class AuthManagerTests: XCTestCase {
         sut.saveToken(token)
         sut.saveRefreshToken(refreshToken)
 
-        // Проверить что deleteToken удаляет ОБА токена
         sut.deleteToken()
 
         XCTAssertNil(sut.getToken())
         XCTAssertNil(sut.getRefreshToken())
+    }
+
+    // MARK: - Critical Tests for Keychain Save/Update
+
+    func testSaveToken_UpdatesExistingToken() {
+        let firstToken = "first.jwt.token"
+        let secondToken = "second.jwt.token"
+
+        // Сохранить первый токен
+        sut.saveToken(firstToken)
+        var retrieved = sut.getToken()
+        XCTAssertEqual(retrieved, firstToken)
+
+        // Перезаписать вторым токеном (КРИТИЧНО - эту ошибку мы исправили)
+        sut.saveToken(secondToken)
+        retrieved = sut.getToken()
+
+        // Должен быть второй токен, а не ошибка Keychain
+        XCTAssertEqual(retrieved, secondToken)
+    }
+
+    func testSaveToken_IsAuthenticatedAfterSave() {
+        let testToken = "test.jwt.token"
+
+        sut.saveToken(testToken)
+
+        // После сохранения токена, должны быть аутентифицированы
+        XCTAssertTrue(sut.isAuthenticated)
+    }
+
+    func testSaveRefreshToken_CanUpdateMultipleTimes() {
+        let token1 = "refresh-1"
+        let token2 = "refresh-2"
+        let token3 = "refresh-3"
+
+        // Сохранить и обновить несколько раз
+        sut.saveRefreshToken(token1)
+        XCTAssertEqual(sut.getRefreshToken(), token1)
+
+        sut.saveRefreshToken(token2)
+        XCTAssertEqual(sut.getRefreshToken(), token2)
+
+        sut.saveRefreshToken(token3)
+        XCTAssertEqual(sut.getRefreshToken(), token3)
     }
 }

@@ -27,8 +27,10 @@ final class AuthViewModel: ObservableObject {
     private let baseURL = "http://158.160.235.224/v1"
 
     init(authManager: AuthManager) {
+        print("[AUTH_VM_INIT] STARTING with authManager.isAuthenticated=\(authManager.isAuthenticated)")
         self.authManager = authManager
-        print("[AUTH] AuthViewModel.init: authManager.isAuthenticated=\(authManager.isAuthenticated)")
+        print("[AUTH_VM_INIT] self.authManager assigned")
+        print("[AUTH_VM_INIT] COMPLETE")
     }
 
     var isAuthenticated: Bool {
@@ -52,15 +54,21 @@ final class AuthViewModel: ObservableObject {
     }
 
     func deviceLogin() async {
+        print("[AUTH] deviceLogin: STARTING")
         isLoading = true
         errorMessage = nil
         do {
+            print("[AUTH] deviceLogin: getting device ID...")
             let deviceID = try await deviceManager.getDeviceID()
             print("[AUTH] deviceLogin: deviceID=\(deviceID)")
+            print("[AUTH] deviceLogin: sending login request...")
             let response = try await deviceLoginRequest(deviceID: deviceID)
             print("[AUTH] deviceLogin: success, isNew=\(response.isNew), userId=\(response.userId)")
+            print("[AUTH] deviceLogin: saving access token (length=\(response.token.count))...")
             authManager.saveToken(response.token)
+            print("[AUTH] deviceLogin: saving refresh token (length=\(response.refreshToken.count))...")
             authManager.saveRefreshToken(response.refreshToken)
+            print("[AUTH] deviceLogin: tokens saved")
 
             if response.isNew {
                 print("[AUTH] New account detected, showing email linking prompt")
@@ -73,11 +81,12 @@ final class AuthViewModel: ObservableObject {
                 updateAuth(true)
             }
         } catch {
-            print("[AUTH] deviceLogin failed: \(error)")
+            print("[AUTH] deviceLogin FAILED: \(error)")
             errorMessage = describe(error)
             updateAuth(false)
         }
         isLoading = false
+        print("[AUTH] deviceLogin: COMPLETE, isAuthenticated=\(isAuthenticated)")
     }
 
     // MARK: - Account Management
@@ -272,8 +281,8 @@ final class AuthViewModel: ObservableObject {
     private func updateAuth(_ authenticated: Bool) {
         print("[AUTH] updateAuth: setting to \(authenticated)")
         if authenticated {
-            // Token is already saved by saveToken(), this just ensures consistency
-            print("[AUTH] updateAuth: ensuring authManager.isAuthenticated = true")
+            // Explicitly set to true (redundant with saveToken but ensures consistency)
+            authManager.setAuthenticated(true)
         } else {
             authManager.deleteToken()
         }

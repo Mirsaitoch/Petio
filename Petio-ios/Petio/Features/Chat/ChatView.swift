@@ -14,7 +14,6 @@ struct ChatView: View {
     @State private var inputText = ""
     @State private var isTyping = false
     @FocusState private var inputFocused: Bool
-    @State private var showAuthPrompt = false
     @State private var showAuthView = false
 
     private let quickQuestions = [
@@ -25,19 +24,54 @@ struct ChatView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            chatHeader
-            messagesList
-            inputBar
+        if authManager.isAuthenticated {
+            VStack(spacing: 0) {
+                chatHeader
+                messagesList
+                inputBar
+            }
+            .background(PetCareTheme.background)
+        } else {
+            authPromptView
+        }
+    }
+
+    private var authPromptView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            Image(systemName: "lock.fill")
+                .font(.system(size: 60))
+                .foregroundColor(PetCareTheme.primary)
+
+            Text("AI-помощник требует аккаунта")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+
+            Text("Создайте аккаунт или войдите, чтобы общаться с AI-помощником по уходу за питомцами")
+                .font(.system(size: 16))
+                .foregroundColor(PetCareTheme.muted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            Spacer()
+
+            Button {
+                showAuthView = true
+            } label: {
+                Text("Создать аккаунт или войти")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(PetCareTheme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 32)
         }
         .background(PetCareTheme.background)
-        .sheet(isPresented: $showAuthPrompt) {
-            AuthPromptSheet(
-                isPresented: $showAuthPrompt,
-                message: "Чтобы общаться с AI-помощником, войдите в аккаунт",
-                onLogin: { showAuthView = true }
-            )
-        }
         .fullScreenCover(isPresented: $showAuthView) {
             AuthView()
         }
@@ -185,10 +219,6 @@ struct ChatView: View {
     private func sendMessage(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
-        guard authManager.isAuthenticated else {
-            showAuthPrompt = true
-            return
-        }
         inputText = ""
         isTyping = true
         Task {

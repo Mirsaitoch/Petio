@@ -14,19 +14,14 @@ struct AuthContainer: View {
     var body: some View {
         Group {
             if !authViewModel.isAuthenticated {
-                // Device login flow
                 if authViewModel.isVerifyingEmail {
-                    // Email verification screen
                     EmailVerificationView(authViewModel: authViewModel)
                 } else if authViewModel.showEmailLinking {
-                    // Email linking form
                     EmailLinkingPromptView(authViewModel: authViewModel)
                 } else {
-                    // Device login splashscreen
                     DeviceLoginView(authViewModel: authViewModel)
                 }
             } else {
-                // Main app flow
                 AppTabView()
                     .task {
                         print("[AUTH] AppTabView task: starting loadAll()")
@@ -36,7 +31,8 @@ struct AuthContainer: View {
             }
         }
         .onAppear {
-            print("[AUTH] AuthContainer appeared, isAuthenticated=\(authViewModel.isAuthenticated)")
+            print("[AUTH_CONTAINER] appeared, isAuthenticated=\(authViewModel.isAuthenticated)")
+            print("[AUTH_CONTAINER] showEmailLinking=\(authViewModel.showEmailLinking), isVerifyingEmail=\(authViewModel.isVerifyingEmail)")
         }
     }
 }

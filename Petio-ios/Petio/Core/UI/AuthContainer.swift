@@ -15,9 +15,14 @@ struct AuthContainer: View {
         Group {
             if !authViewModel.isAuthenticated {
                 // Device login flow
-                if authViewModel.showEmailLinking {
+                if authViewModel.isVerifyingEmail {
+                    // Email verification screen
+                    EmailVerificationView(authViewModel: authViewModel)
+                } else if authViewModel.showEmailLinking {
+                    // Email linking form
                     EmailLinkingPromptView(authViewModel: authViewModel)
                 } else {
+                    // Device login splashscreen
                     DeviceLoginView(authViewModel: authViewModel)
                 }
             } else {

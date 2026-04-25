@@ -21,6 +21,7 @@ final class AuthViewModel: ObservableObject {
     @Published var deviceAccounts: [AccountInfo] = []
     @Published var currentEmail: String?
     @Published var showEmailLinking = false
+    @Published var isVerifyingEmail = false  // Show email verification screen
 
     private let authManager: AuthManager
     private let deviceManager = DeviceManager.shared
@@ -97,7 +98,9 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         do {
             try await linkEmailRequest(email: email, password: password)
+            // Store email and move to verification screen
             currentEmail = email
+            isVerifyingEmail = true
         } catch {
             errorMessage = describe(error)
         }
@@ -109,7 +112,10 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         do {
             try await verifyEmailRequest(code: code)
+            // Email verified successfully - complete authentication
+            isVerifyingEmail = false
             showEmailLinking = false
+            updateAuth(true)
         } catch {
             errorMessage = describe(error)
         }

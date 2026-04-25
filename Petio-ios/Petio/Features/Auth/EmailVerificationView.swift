@@ -18,10 +18,17 @@ struct EmailVerificationView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("Мы отправили код на \(authViewModel.currentEmail ?? "вашу почту")")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                if let email = authViewModel.currentEmail {
+                    Text("Мы отправили код на \(email)")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("Мы отправили код на вашу почту")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
 
             VStack(spacing: 12) {

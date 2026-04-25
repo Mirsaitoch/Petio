@@ -25,7 +25,8 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         path: String,
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
-        body: Data? = nil
+        body: Data? = nil,
+        includeAuth: Bool = true
     ) throws -> URLRequest {
         guard var components = URLComponents(string: baseURL + path) else {
             throw APIError.invalidURL
@@ -37,7 +38,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = authManager.getToken() {
+        if includeAuth, let token = authManager.getToken() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         req.httpBody = body
@@ -131,10 +132,12 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             let refreshToken: String
         }
 
+        // Don't include expired token when refreshing
         let request = try makeRequest(
             path: "/auth/refresh",
             method: "POST",
-            body: encode(RefreshRequest(refreshToken: refreshToken))
+            body: encode(RefreshRequest(refreshToken: refreshToken)),
+            includeAuth: false
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)

@@ -39,7 +39,7 @@ struct ForgotPasswordView: View {
                         .foregroundStyle(PetCareTheme.muted)
                     TextField("Ваша почта", text: $email)
                         .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
+                        .textContentType(.none)
                         .autocapitalization(.none)
                         .padding(14)
                         .background(PetCareTheme.inputBackground)

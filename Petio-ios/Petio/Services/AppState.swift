@@ -272,6 +272,7 @@ final class AppState: ObservableObject {
             var result = profile
 
             let usernameKey = "petio_session_username"
+            var needsSyncUsername = false
             if result.username.trimmingCharacters(in: .whitespaces).isEmpty {
                 if let saved = UserDefaults.standard.string(forKey: usernameKey) {
                     result.username = saved
@@ -283,6 +284,7 @@ final class AppState: ObservableObject {
                     result.username = zoo
                     print("[PROFILE] Username пустой везде, сгенерирован новый: '\(zoo)'")
                 }
+                needsSyncUsername = true
             } else {
                 UserDefaults.standard.set(result.username, forKey: usernameKey)
                 print("[PROFILE] Username с сервера сохранён: '\(result.username)'")
@@ -291,6 +293,11 @@ final class AppState: ObservableObject {
             user = result
             LocalStorage.save(result, to: .profile)
             print("[PROFILE] Итоговый профиль — name='\(result.name)', username='\(result.username)', email='\(result.email ?? "nil")'")
+
+            if needsSyncUsername {
+                print("[PROFILE] Синхронизация username на сервер: '\(result.username)'")
+                try? await api.updateProfile(result)
+            }
         } catch {
             print("[PROFILE] Ошибка загрузки профиля с сервера: \(error)")
 

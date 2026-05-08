@@ -19,9 +19,9 @@ struct ProfileView: View {
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
     @State private var selectedTab: ProfileTab = .posts
-    @State private var showAuthPrompt = false
-    @State private var showAuthView = false
     @State private var showEmailLinking = false
+    @State private var showLogin = false
+    @State private var showEmailLinkedAlert = false
 
     private var myPosts: [Post] {
         app.posts.filter { $0.author == app.user.username }
@@ -35,20 +35,14 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if authManager.isAuthenticated {
-                    VStack(alignment: .leading, spacing: 16) {
-                        header
-                        tabs
-                        ScrollView(showsIndicators: false) {
-                            profileContent
-                        }
-                    }
-                    .background(PetCareTheme.background)
-                } else {
-                    guestView
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                tabs
+                ScrollView(showsIndicators: false) {
+                    profileContent
                 }
             }
+            .background(PetCareTheme.background)
             .navigationDestination(for: AppRoute.self) { route in
                 switch route {
                 case .pets:
@@ -59,22 +53,17 @@ struct ProfileView: View {
                     EmptyView()
                 }
             }
-            .sheet(isPresented: $showAuthPrompt) {
-                AuthPromptSheet(
-                    isPresented: $showAuthPrompt,
-                    message: "Войдите, чтобы сохранить данные и открыть больше возможностей",
-                    onLogin: { showAuthView = true }
-                )
-            }
-            .fullScreenCover(isPresented: $showAuthView) {
-                AuthView()
-            }
             .sheet(isPresented: $showEmailLinking) {
                 ProfileEmailLinkingView(authManager: authManager) {
                     showEmailLinking = false
-                    // Reload profile to get updated email
+                    showEmailLinkedAlert = true
                     Task { await app.loadProfile() }
                 }
+            }
+            .alert("Email привязан", isPresented: $showEmailLinkedAlert) {
+                Button("Отлично", role: .cancel) { }
+            } message: {
+                Text("Теперь вы можете писать посты, комментировать и общаться в чате.")
             }
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet(user: app.user) { updated in
@@ -82,74 +71,13 @@ struct ProfileView: View {
                     showEditProfile = false
                 } onCancel: { showEditProfile = false }
             }
+            .sheet(isPresented: $showLogin) {
+                ProfileLoginView(authManager: authManager) {
+                    showLogin = false
+                    Task { await app.loadAll() }
+                }
+            }
         }
-    }
-
-    private var guestView: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Профиль")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
-            .background {
-                PetCareTheme.primary
-                    .clipShape(.rect(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 32,
-                        bottomTrailingRadius: 32,
-                        topTrailingRadius: 0
-                    ))
-                    .ignoresSafeArea()
-            }
-            .padding(.bottom, 16)
-
-            Spacer()
-
-            VStack(spacing: 20) {
-                ZStack {
-                    Circle()
-                        .fill(PetCareTheme.secondary)
-                        .frame(width: 96, height: 96)
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 44))
-                        .foregroundColor(PetCareTheme.primary)
-                }
-
-                VStack(spacing: 8) {
-                    Text("Вы не вошли в аккаунт")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(PetCareTheme.primary)
-                    Text("Войдите, чтобы сохранить данные,\nобщаться в ленте и использовать AI-чат")
-                        .font(.system(size: 14))
-                        .foregroundColor(PetCareTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-
-                Button {
-                    showAuthPrompt = true
-                } label: {
-                    Text("Войти / Зарегистрироваться")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(PetCareTheme.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 40)
-            }
-
-            Spacer()
-            Spacer()
-        }
-        .background(PetCareTheme.background)
     }
 
     private var header: some View {
@@ -161,11 +89,7 @@ struct ProfileView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button {
-                        if authManager.isAuthenticated {
-                            showEditProfile = true
-                        } else {
-                            showAuthPrompt = true
-                        }
+                        showEditProfile = true
                     } label: {
                         Image(systemName: "gearshape")
                             .font(.system(size: 18))
@@ -182,10 +106,6 @@ struct ProfileView: View {
                         photoPath: Binding(
                             get: { app.user.avatar },
                             set: { newValue in
-                                guard authManager.isAuthenticated else {
-                                    showAuthPrompt = true
-                                    return
-                                }
                                 var updated = app.user
                                 updated.avatar = newValue
                                 Task { await app.updateProfile(updated) }
@@ -331,9 +251,10 @@ struct ProfileView: View {
             ForEach(Array(displayPosts.enumerated()), id: \.element.id) { index, post in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        CircleAvatarView(url: post.avatar, fallbackLetter: String(post.author.prefix(1)), size: 32)
+                        let pName = post.author.trimmingCharacters(in: .whitespaces).isEmpty ? String(post.id.prefix(8)) : post.author
+                        CircleAvatarView(url: post.avatar, fallbackLetter: String(pName.prefix(1).uppercased()), size: 32)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(post.author)
+                            Text(pName)
                                 .font(.system(size: 13))
                                 .foregroundColor(PetCareTheme.primary)
                             Text(post.timestamp)
@@ -417,10 +338,14 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 settingsRow(icon: "bell", color: .blue, title: "Уведомления")
                 settingsRow(icon: "lock.shield", color: .green, title: "Конфиденциальность")
-                if authManager.isAuthenticated && (app.user.email == nil || app.user.email?.isEmpty == true) {
+                if app.user.email == nil || app.user.email?.isEmpty == true {
                     Divider().padding(.leading, 60)
                     settingsRow(icon: "envelope.badge", color: .purple, title: "Привязать email") {
                         showEmailLinking = true
+                    }
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "person.crop.circle", color: .indigo, title: "Войти в аккаунт") {
+                        showLogin = true
                     }
                 }
                 settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь") {
@@ -429,14 +354,8 @@ struct ProfileView: View {
                     }
                 }
                 Divider().padding(.leading, 60)
-                if authManager.isAuthenticated {
-                    settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти") {
-                        showLogoutAlert = true
-                    }
-                } else {
-                    settingsRow(icon: "person.crop.circle.badge.plus", color: PetCareTheme.primary, title: "Войти / Зарегистрироваться") {
-                        showAuthPrompt = true
-                    }
+                settingsRow(icon: "rectangle.portrait.and.arrow.right", color: .red, title: "Выйти") {
+                    showLogoutAlert = true
                 }
             }
             .alert("Выйти из аккаунта?", isPresented: $showLogoutAlert) {

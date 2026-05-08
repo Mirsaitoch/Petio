@@ -45,7 +45,7 @@ private struct ProfileEmailLinkingContent: View {
         NavigationStack {
             Group {
                 if viewModel.isVerifyingEmail {
-                    verificationView
+                    EmailVerificationView(authViewModel: viewModel)
                 } else {
                     formView
                 }
@@ -55,17 +55,12 @@ private struct ProfileEmailLinkingContent: View {
                     Button("Отмена") { onComplete() }
                 }
             }
-        }
-    }
-
-    private var verificationView: some View {
-        EmailVerificationView(authViewModel: viewModel)
             .onChange(of: viewModel.showEmailLinking) { _, show in
-                // verifyEmail sets showEmailLinking = false on success
                 if !show {
                     onComplete()
                 }
             }
+        }
     }
 
     private var formView: some View {
@@ -94,7 +89,7 @@ private struct ProfileEmailLinkingContent: View {
                         .foregroundStyle(PetCareTheme.muted)
                     TextField("Ваша почта", text: $email)
                         .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
+                        .textContentType(.none)
                         .autocapitalization(.none)
                         .padding(14)
                         .background(PetCareTheme.inputBackground)

@@ -2,7 +2,7 @@
 //  AuthPromptSheet.swift
 //  Petio
 //
-//  Bottom sheet shown when a guest attempts a protected action.
+//  Bottom sheet shown when user attempts an email-gated action.
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 struct AuthPromptSheet: View {
     @Binding var isPresented: Bool
     let message: String
+    var onLinkEmail: () -> Void = {}
     var onLogin: () -> Void = {}
 
     var body: some View {
@@ -25,7 +26,7 @@ struct AuthPromptSheet: View {
                 Circle()
                     .fill(PetCareTheme.secondary)
                     .frame(width: 80, height: 80)
-                Image(systemName: "pawprint.fill")
+                Image(systemName: "envelope.badge")
                     .font(.system(size: 36))
                     .foregroundStyle(PetCareTheme.primary)
             }
@@ -46,7 +47,7 @@ struct AuthPromptSheet: View {
             VStack(spacing: 10) {
                 Button {
                     isPresented = false
-                    onLogin()
+                    onLinkEmail()
                 } label: {
                     Text("Привязать email")
                         .font(.system(size: 16, weight: .semibold))
@@ -55,6 +56,18 @@ struct AuthPromptSheet: View {
                         .padding(.vertical, 14)
                         .background(PetCareTheme.primary)
                         .clipShape(.rect(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    isPresented = false
+                    onLogin()
+                } label: {
+                    Text("Уже есть аккаунт? Войти")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(PetCareTheme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
 
@@ -76,7 +89,7 @@ struct AuthPromptSheet: View {
         .frame(maxWidth: .infinity)
         .background(PetCareTheme.cardBackground)
         .clipShape(.rect(cornerRadius: 24))
-        .presentationDetents([.height(380)])
+        .presentationDetents([.height(420)])
         .presentationDragIndicator(.hidden)
     }
 }

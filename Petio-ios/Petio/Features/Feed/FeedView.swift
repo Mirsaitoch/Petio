@@ -28,6 +28,7 @@ struct FeedView: View {
     @State private var showAuthPrompt = false
     @State private var authPromptMessage = ""
     @State private var showEmailLinking = false
+    @State private var showLogin = false
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
@@ -81,7 +82,8 @@ struct FeedView: View {
             AuthPromptSheet(
                 isPresented: $showAuthPrompt,
                 message: authPromptMessage,
-                onLogin: { showEmailLinking = true }
+                onLinkEmail: { showEmailLinking = true },
+                onLogin: { showLogin = true }
             )
         }
         .sheet(isPresented: $showEmailLinking) {
@@ -92,6 +94,12 @@ struct FeedView: View {
                     Task { await app.loadProfile() }
                 }
             )
+        }
+        .sheet(isPresented: $showLogin) {
+            ProfileLoginView(authManager: authManager) {
+                showLogin = false
+                Task { await app.loadAll() }
+            }
         }
         .sheet(isPresented: $showNewPost) {
             NewPostSheet(user: app.user) { post, image in

@@ -22,6 +22,7 @@ final class AuthViewModel: ObservableObject {
     @Published var showEmailLinking = false
     @Published var isVerifyingEmail = false
     @Published var passwordRecoverySheet: PasswordRecoverySheet?
+    @Published var didLogin = false
 
     enum PasswordRecoverySheet: Identifiable {
         case forgotPassword
@@ -106,6 +107,7 @@ final class AuthViewModel: ObservableObject {
             authManager.saveToken(response.token)
             authManager.saveRefreshToken(response.refreshToken)
             authManager.setAuthenticated(true)
+            didLogin = true
         } catch {
             errorMessage = describe(error)
         }
@@ -144,6 +146,7 @@ final class AuthViewModel: ObservableObject {
         do {
             try await linkEmailRequest(email: email, password: password)
             currentEmail = email
+            showEmailLinking = true
             isVerifyingEmail = true
         } catch {
             errorMessage = describe(error)

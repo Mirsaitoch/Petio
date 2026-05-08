@@ -2,8 +2,8 @@
 //  ContentView.swift
 //  Petio
 //
-//  Entry point. Always shows AppTabView — no auth gate.
-//  AuthView is presented as a sheet from AuthPromptSheet or ProfileView.
+//  Entry point with device-based auth flow.
+//  Routes to DeviceLoginView → EmailLinkingPromptView → AppTabView
 //
 
 import SwiftUI
@@ -11,24 +11,31 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var appState: AppState
+    @State private var authViewModel: AuthViewModel?
+
+    init() {
+        print("[CONTENT_VIEW_INIT] ContentView initializing")
+    }
 
     var body: some View {
-        AppTabView()
-            .task {
-                await appState.loadAll()
+        let _ = print("[CONTENT_VIEW_BODY] computing body, authViewModel=\(authViewModel == nil ? "nil" : "exists")")
+        return Group {
+            if let vm = authViewModel {
+                AuthContainer(authViewModel: vm)
+                    .environmentObject(appState)
+            } else {
+                Color.white
+                    .ignoresSafeArea()
             }
-            .onChange(of: authManager.isAuthenticated) { _, isAuth in
-                if isAuth {
-                    // Clear guest profile so it doesn't leak into authenticated session
-                    LocalStorage.delete(file: .profile)
-                    Task {
-                        await appState.loadAll()
-                    }
-                } else {
-                    appState.resetUserSession()
-                    Task { await appState.loadAll() }
-                }
+        }
+        .task {
+            print("[CONTENT_VIEW] task: authViewModel is \(authViewModel == nil ? "nil" : "initialized")")
+            if authViewModel == nil {
+                print("[CONTENT_VIEW] task: creating AuthViewModel with authManager.isAuthenticated=\(authManager.isAuthenticated)")
+                authViewModel = AuthViewModel(authManager: authManager)
+                print("[CONTENT_VIEW] task: AuthViewModel created: \(authViewModel == nil ? "FAILED" : "SUCCESS")")
             }
+        }
     }
 }
 

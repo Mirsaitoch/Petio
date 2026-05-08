@@ -13,12 +13,10 @@ struct AddReminderSheet: View {
     let onCancel: () -> Void
 
     @State private var type: ReminderType
-    @State private var customTypeName: String
     @State private var title: String
     @State private var selectedDate: Date
     @State private var selectedTime: Date
     @State private var currentPetId: String
-    @FocusState private var customTypeFieldFocused: Bool
 
     private var isEditing: Bool { existingReminder != nil }
 
@@ -30,13 +28,12 @@ struct AddReminderSheet: View {
         self.onSave = onSave
         self.onCancel = onCancel
         _type = State(initialValue: existingReminder?.type ?? .feeding)
-        _customTypeName = State(initialValue: existingReminder?.customTypeName ?? "")
         _title = State(initialValue: existingReminder?.title ?? "")
         _currentPetId = State(initialValue: existingReminder?.petId ?? (selectedPetId.isEmpty ? (pets.first?.id ?? "") : selectedPetId))
 
         let dateStr = existingReminder?.date
         let timeStr = existingReminder?.time
-        let parsedDate = dateStr.flatMap { Self.dateFormatter.date(from: $0) } ?? Date()
+        let parsedDate = dateStr.flatMap { DateHelper.parse($0) ?? Self.dateFormatter.date(from: $0) } ?? Date()
         _selectedDate = State(initialValue: parsedDate)
 
         if let timeStr, let parsedTime = Self.timeFormatter.date(from: timeStr) {
@@ -56,11 +53,10 @@ struct AddReminderSheet: View {
     }()
 
     private var canSave: Bool {
-        !currentPetId.isEmpty && (type != .other || !customTypeName.trimmingCharacters(in: .whitespaces).isEmpty)
+        !currentPetId.isEmpty
     }
 
-    // Built-in types (excluding .other which is handled separately)
-    private let builtInTypes: [ReminderType] = [.feeding, .vaccination, .deworming, .grooming]
+    private let builtInTypes: [ReminderType] = ReminderType.allCases
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,7 +86,6 @@ struct AddReminderSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
                     typeSection
-                    if type == .other { customTypeField }
                     nameField
                     dateTimeRow
                     if pets.count > 1 { petRow }
@@ -113,7 +108,6 @@ struct AddReminderSheet: View {
             label("Тип")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(builtInTypes, id: \.self) { t in typeCard(t) }
-                otherCard
             }
         }
     }
@@ -153,68 +147,6 @@ struct AddReminderSheet: View {
         .buttonStyle(.plain)
     }
 
-    private var otherCard: some View {
-        let selected = type == .other
-        return Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                type = .other
-                customTypeFieldFocused = true
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 15))
-                    .foregroundColor(selected ? .white : PetCareTheme.muted)
-                    .frame(width: 30, height: 30)
-                    .background(selected ? Color.purple : PetCareTheme.secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                Text("Свой тип")
-                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                    .foregroundColor(selected ? PetCareTheme.primary : PetCareTheme.muted)
-                Spacer(minLength: 0)
-                if selected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.purple)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(PetCareTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(selected ? Color.purple : PetCareTheme.border, lineWidth: selected ? 1.5 : 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Custom type field
-
-    private var customTypeField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "tag")
-                .font(.system(size: 14))
-                .foregroundColor(.purple)
-                .frame(width: 28, height: 28)
-                .background(Color.purple.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            TextField("Например: Прогулка", text: $customTypeName)
-                .font(.system(size: 14))
-                .focused($customTypeFieldFocused)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(PetCareTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.purple.opacity(0.5), lineWidth: 1.5)
-        )
-        .transition(.opacity.combined(with: .move(edge: .top)))
-    }
-
     // MARK: - Name field
 
     private var nameField: some View {
@@ -228,7 +160,7 @@ struct AddReminderSheet: View {
                     .background(type.color.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .animation(.easeInOut(duration: 0.15), value: type)
-                TextField(type == .other && !customTypeName.isEmpty ? customTypeName : type.label, text: $title)
+                TextField(type.label, text: $title)
                     .font(.system(size: 14))
                     .foregroundColor(PetCareTheme.primary)
             }
@@ -320,15 +252,12 @@ struct AddReminderSheet: View {
     private func save() {
         let petName = pets.first(where: { $0.id == currentPetId })?.name ?? ""
         let resolvedTitle = title.trimmingCharacters(in: .whitespaces)
-        let fallbackTitle = type == .other
-            ? (customTypeName.trimmingCharacters(in: .whitespaces).isEmpty ? "Другое" : customTypeName.trimmingCharacters(in: .whitespaces))
-            : type.label
+        let fallbackTitle = type.label
         let r = Reminder(
             id: existingReminder?.id ?? UUID().uuidString,
             petId: currentPetId,
             petName: petName,
             type: type,
-            customTypeName: type == .other ? customTypeName.trimmingCharacters(in: .whitespaces) : nil,
             title: resolvedTitle.isEmpty ? fallbackTitle : resolvedTitle,
             date: Self.dateFormatter.string(from: selectedDate),
             time: Self.timeFormatter.string(from: selectedTime),

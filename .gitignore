@@ -66,6 +66,9 @@ dist/
 # Claude Code
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # IDE / Editor
 .idea/
 *.swp

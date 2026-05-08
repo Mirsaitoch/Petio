@@ -2,60 +2,294 @@
 //  AuthViewModel.swift
 //  Petio
 //
-//  Handles login and registration. Makes direct HTTP calls to /auth endpoints (no JWT needed).
+//  Device-based authentication with optional email linking.
 //
 
 import Foundation
+
+struct AccountInfo: Codable {
+    let userId: String
+    let email: String?
+    let isCurrentAccount: Bool
+}
 
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var deviceAccounts: [AccountInfo] = []
+    @Published var currentEmail: String?
+    @Published var showEmailLinking = false
+    @Published var isVerifyingEmail = false  // Show email verification screen
 
-    private let authManager: AuthManager
-    private let baseURL = "http://localhost:8080/v1"
+    let authManager: AuthManager  // Use authManager's isAuthenticated, not own
+    private let deviceManager = DeviceManager.shared
+    private let baseURL = "http://158.160.235.224/v1"
 
     init(authManager: AuthManager) {
+        print("[AUTH_VM_INIT] STARTING with authManager.isAuthenticated=\(authManager.isAuthenticated)")
         self.authManager = authManager
+        print("[AUTH_VM_INIT] self.authManager assigned")
+        print("[AUTH_VM_INIT] COMPLETE")
     }
 
-    func login(email: String, password: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            let token = try await authRequest(path: "/auth/login", body: ["email": email, "password": password])
-            UserDefaults.standard.set(email, forKey: "petio_session_email")
-            authManager.saveToken(token)
-        } catch {
-            errorMessage = describe(error)
-        }
-        isLoading = false
+    var isAuthenticated: Bool {
+        authManager.isAuthenticated
     }
 
+    // MARK: - Device Login
+
+    // Legacy method for backward compatibility - routes to device login
     func register(email: String, password: String, username: String) async {
+        // Device-based auth doesn't use email/password registration
+        // Just do device login instead
+        await deviceLogin()
+    }
+
+    // Legacy method for backward compatibility
+    func login(email: String, password: String) async {
+        // Device-based auth doesn't use email/password login
+        // Just do device login instead
+        await deviceLogin()
+    }
+
+    func deviceLogin() async {
+        print("[AUTH] deviceLogin: STARTING")
         isLoading = true
         errorMessage = nil
-        let finalUsername = username.trimmingCharacters(in: .whitespaces).isEmpty
-            ? Self.generateZooUsername()
-            : username
-        print("[AUTH] Регистрация: email='\(email)', username введённый='\(username)', finalUsername='\(finalUsername)'")
         do {
-            let token = try await authRequest(
-                path: "/auth/register",
-                body: ["email": email, "password": password, "username": finalUsername]
-            )
-            UserDefaults.standard.set(email, forKey: "petio_session_email")
-            UserDefaults.standard.set(finalUsername, forKey: "petio_session_username")
-            print("[AUTH] Регистрация успешна. Сохранён petio_session_username='\(finalUsername)'")
-            authManager.saveToken(token)
+            print("[AUTH] deviceLogin: getting device ID...")
+            let deviceID = try await deviceManager.getDeviceID()
+            print("[AUTH] deviceLogin: deviceID=\(deviceID)")
+            print("[AUTH] deviceLogin: sending login request...")
+            let response = try await deviceLoginRequest(deviceID: deviceID)
+            print("[AUTH] deviceLogin: success, isNew=\(response.isNew), userId=\(response.userId)")
+            print("[AUTH] deviceLogin: saving access token (length=\(response.token.count))...")
+            authManager.saveToken(response.token)
+            print("[AUTH] deviceLogin: saving refresh token (length=\(response.refreshToken.count))...")
+            authManager.saveRefreshToken(response.refreshToken)
+            print("[AUTH] deviceLogin: tokens saved")
+
+            if response.isNew {
+                print("[AUTH] New account detected, showing email linking prompt")
+                // New account - must verify email before full authentication
+                showEmailLinking = true
+                updateAuth(false)  // Not authenticated until email verified
+            } else {
+                print("[AUTH] Existing account, authenticating immediately")
+                // Existing account - already authenticated
+                updateAuth(true)
+            }
         } catch {
-            print("[AUTH] Ошибка регистрации: \(error)")
+            print("[AUTH] deviceLogin FAILED: \(error)")
+            errorMessage = describe(error)
+            updateAuth(false)
+        }
+        isLoading = false
+        print("[AUTH] deviceLogin: COMPLETE, isAuthenticated=\(isAuthenticated)")
+    }
+
+    // MARK: - Account Management
+
+    func listDeviceAccounts() async throws -> [AccountInfo] {
+        let deviceID = try await deviceManager.getDeviceID()
+        let accounts = try await listAccountsRequest(deviceID: deviceID)
+        await MainActor.run { self.deviceAccounts = accounts }
+        return accounts
+    }
+
+    func switchAccount(userId: String) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let deviceID = try await deviceManager.getDeviceID()
+            let response = try await switchAccountRequest(deviceID: deviceID, userId: userId)
+            authManager.saveToken(response.token)
+            authManager.saveRefreshToken(response.refreshToken)
+            updateAuth(true)
+        } catch {
             errorMessage = describe(error)
         }
         isLoading = false
     }
 
-    // MARK: - Private
+    // MARK: - Email Linking
+
+    func linkEmail(email: String, password: String) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            print("[AUTH] linkEmail: sending email=\(email)")
+            try await linkEmailRequest(email: email, password: password)
+            print("[AUTH] linkEmail: success, showing verification screen")
+            // Store email and move to verification screen
+            currentEmail = email
+            isVerifyingEmail = true
+        } catch {
+            print("[AUTH] linkEmail failed: \(error)")
+            errorMessage = describe(error)
+        }
+        isLoading = false
+    }
+
+    func verifyEmail(code: String) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            print("[AUTH] verifyEmail: sending code=\(code)")
+            try await verifyEmailRequest(code: code)
+            print("[AUTH] verifyEmail: success, authenticating user")
+            // Email verified successfully - complete authentication
+            isVerifyingEmail = false
+            showEmailLinking = false
+            updateAuth(true)
+        } catch {
+            print("[AUTH] verifyEmail failed: \(error)")
+            errorMessage = describe(error)
+        }
+        isLoading = false
+    }
+
+    // MARK: - Private API Requests
+
+    private func deviceLoginRequest(deviceID: String) async throws -> DeviceLoginResponse {
+        struct Request: Encodable {
+            let device_id: String
+        }
+        struct Response: Decodable {
+            let token: String
+            let refreshToken: String
+            let userId: String
+            let isNew: Bool
+        }
+        let response: Response = try await apiRequest(
+            path: "/auth/device",
+            method: "POST",
+            body: Request(device_id: deviceID)
+        )
+        return DeviceLoginResponse(
+            token: response.token,
+            refreshToken: response.refreshToken,
+            userId: response.userId,
+            isNew: response.isNew
+        )
+    }
+
+    private func listAccountsRequest(deviceID: String) async throws -> [AccountInfo] {
+        let url = baseURL + "/auth/device/accounts?device_id=\(deviceID)"
+        guard let encodedURL = url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let finalURL = URL(string: encodedURL) else {
+            throw APIError.invalidURL
+        }
+        var req = URLRequest(url: finalURL)
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.network(URLError(.badServerResponse)) }
+        guard (200..<300).contains(http.statusCode) else { throw APIError.server(http.statusCode) }
+
+        return try JSONDecoder().decode([AccountInfo].self, from: data)
+    }
+
+    private func switchAccountRequest(deviceID: String, userId: String) async throws -> SwitchAccountResponse {
+        struct Request: Encodable {
+            let device_id: String
+            let user_id: String
+        }
+        struct Response: Decodable {
+            let token: String
+            let refreshToken: String
+        }
+        let response: Response = try await apiRequest(
+            path: "/auth/device/switch",
+            method: "POST",
+            body: Request(device_id: deviceID, user_id: userId)
+        )
+        return SwitchAccountResponse(token: response.token, refreshToken: response.refreshToken)
+    }
+
+    private func linkEmailRequest(email: String, password: String) async throws {
+        struct Request: Encodable {
+            let email: String
+            let password: String
+        }
+        struct Response: Decodable {
+            let status: String
+        }
+        let _: Response = try await apiRequest(
+            path: "/auth/link-email",
+            method: "POST",
+            body: Request(email: email, password: password)
+        )
+    }
+
+    private func verifyEmailRequest(code: String) async throws {
+        struct Request: Encodable {
+            let code: String
+        }
+        struct Response: Decodable {
+            let status: String
+        }
+        let _: Response = try await apiRequest(
+            path: "/auth/verify-email",
+            method: "POST",
+            body: Request(code: code)
+        )
+    }
+
+    // MARK: - Generic API Request Helper
+
+    private func apiRequest<T: Decodable, B: Encodable>(
+        path: String,
+        method: String = "GET",
+        body: B? = nil
+    ) async throws -> T {
+        guard let url = URL(string: baseURL + path) else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = authManager.getToken() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body = body {
+            req.httpBody = try JSONEncoder().encode(body)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.network(URLError(.badServerResponse)) }
+        guard (200..<300).contains(http.statusCode) else { throw APIError.server(http.statusCode) }
+
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    // MARK: - Error Handling
+
+    private func describe(_ error: Error) -> String {
+        guard let apiError = error as? APIError else {
+            return "Произошла ошибка. Попробуйте ещё раз."
+        }
+        switch apiError {
+        case .server(401): return "Неверные учётные данные."
+        case .server(409): return "Этот email уже используется."
+        case .server(let code): return "Ошибка сервера: \(code)."
+        case .network: return "Нет подключения к интернету."
+        default: return "Произошла ошибка. Попробуйте ещё раз."
+        }
+    }
+
+    private func updateAuth(_ authenticated: Bool) {
+        print("[AUTH] updateAuth: setting to \(authenticated)")
+        if authenticated {
+            // Explicitly set to true (redundant with saveToken but ensures consistency)
+            authManager.setAuthenticated(true)
+        } else {
+            authManager.deleteToken()
+        }
+        print("[AUTH] updateAuth: authManager.isAuthenticated is now \(authManager.isAuthenticated)")
+    }
+
+    // MARK: - Utility (for legacy views)
 
     static func generateZooUsername() -> String {
         let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk", "puma", "lynx"]
@@ -63,33 +297,18 @@ final class AuthViewModel: ObservableObject {
         let number = Int.random(in: 10000...99999)
         return "\(animal)-\(number)"
     }
+}
 
-    private func authRequest(path: String, body: [String: String]) async throws -> String {
-        guard let url = URL(string: baseURL + path) else { throw APIError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse else { throw APIError.invalidURL }
-        guard (200..<300).contains(http.statusCode) else { throw APIError.server(http.statusCode) }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-              let token = json["token"] else {
-            throw APIError.decoding(URLError(.cannotDecodeRawData))
-        }
-        return token
-    }
+// MARK: - Response Models
 
-    private func describe(_ error: Error) -> String {
-        guard let apiError = error as? APIError else {
-            return "Произошла ошибка. Попробуйте ещё раз."
-        }
-        switch apiError {
-        case .server(401): return "Неверный email или пароль."
-        case .server(409): return "Пользователь с таким email уже существует."
-        case .server(let code): return "Ошибка сервера: \(code)."
-        case .network: return "Нет подключения к интернету."
-        default: return "Произошла ошибка. Попробуйте ещё раз."
-        }
-    }
+private struct DeviceLoginResponse {
+    let token: String
+    let refreshToken: String
+    let userId: String
+    let isNew: Bool
+}
+
+private struct SwitchAccountResponse {
+    let token: String
+    let refreshToken: String
 }

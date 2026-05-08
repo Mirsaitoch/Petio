@@ -21,6 +21,16 @@
 		3B8A13C12F463604005C345D /* Petio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Petio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3BEDE9152F9AAF4E008B00BC /* Exceptions for "Petio" folder in "Petio" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 3B8A13C02F463604005C345D /* Petio */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3B3DED722F538FFC00AFD63A /* PetioTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -29,6 +39,9 @@
 		};
 		3B8A13C32F463604005C345D /* Petio */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3BEDE9152F9AAF4E008B00BC /* Exceptions for "Petio" folder in "Petio" target */,
+			);
 			path = Petio;
 			sourceTree = "<group>";
 		};
@@ -367,6 +380,7 @@
 				DEVELOPMENT_TEAM = 5KT477LB69;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Petio/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Сделайте фото вашего питомца";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Выберите фото вашего питомца из галереи";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -402,6 +416,7 @@
 				DEVELOPMENT_TEAM = 5KT477LB69;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Petio/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Сделайте фото вашего питомца";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Выберите фото вашего питомца из галереи";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

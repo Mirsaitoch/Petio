@@ -18,7 +18,6 @@ final class AppState: ObservableObject {
         self.api = api
         self.authManager = authManager
         self.customDiaryTags = LocalStorage.load(from: .tags) ?? []
-        // Start observing network changes
         setupNetworkObserver()
     }
 
@@ -57,7 +56,6 @@ final class AppState: ObservableObject {
 
     private func pushRemindersToServer() async {
         for reminder in reminders {
-            // Try update first; if not found on server, add it
             do {
                 _ = try await api.addReminder(reminder)
             } catch {
@@ -100,7 +98,8 @@ final class AppState: ObservableObject {
     @Published var isPostUploading = false
     @Published var postsLoadFailed = false
     @Published var chatMessages: [ChatMessage] = []
-    @Published var user: UserProfile = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+    @Published var currentChatId: String?
+    @Published var user: UserProfile = UserProfile(name: "", username: "", avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     @Published var selectedPetId: String = ""
     @Published var customDiaryTags: [DiaryTag] = []
     @Published var selectedTab: AppTab = .home
@@ -129,22 +128,24 @@ final class AppState: ObservableObject {
 
     // MARK: - Load from API (business logic)
     func loadAll() async {
-        // Phase 1: load independent data in parallel
+        print("[STATE] loadAll: Phase 1 starting")
         async let p: () = loadPets()
         async let r: () = loadReminders()
         async let a: () = loadArticles()
         async let po: () = loadPosts()
         async let u: () = loadProfile()
         _ = await (p, r, a, po, u)
+        print("[STATE] loadAll: Phase 1 completed")
 
         if selectedPetId.isEmpty, let first = pets.first {
             selectedPetId = first.id
         }
 
-        // Phase 2: load pet-dependent data (needs pets to be loaded first)
+        print("[STATE] loadAll: Phase 2 starting")
         async let w: () = loadWeightHistory()
         async let d: () = loadDiary()
         _ = await (w, d)
+        print("[STATE] loadAll: Phase 2 completed")
     }
 
     func loadPets() async {
@@ -229,9 +230,9 @@ final class AppState: ObservableObject {
         postsLoadFailed = false
         print("[POSTS] loadPosts: начало загрузки")
         do {
-            let fetched = try await api.fetchPosts(club: nil)
-            posts = fetched
-            print("[POSTS] loadPosts: загружено \(fetched.count) постов")
+            let response = try await api.fetchPosts(club: nil, limit: 20, afterID: nil, beforeID: nil)
+            posts = response.posts
+            print("[POSTS] loadPosts: загружено \(response.posts.count) постов")
         } catch {
             print("[POSTS] loadPosts: ошибка — \(error)")
             if posts.isEmpty {
@@ -243,7 +244,6 @@ final class AppState: ObservableObject {
 
     func loadProfile() async {
         guard authManager?.isAuthenticated == true else {
-            // Guest: use anonymous profile from local storage or generate one
             if let saved: UserProfile = LocalStorage.load(from: .profile) {
                 print("[PROFILE] Гость: загружен из кеша — username='\(saved.username)'")
                 user = saved
@@ -251,7 +251,7 @@ final class AppState: ObservableObject {
             }
             let animals = ["cat", "dog", "fox", "owl", "bear", "wolf", "deer", "crow", "frog", "hawk"]
             let zoo = "\(animals.randomElement() ?? "pet")-\(Int.random(in: 10000...99999))"
-            let guestProfile = UserProfile(username: zoo, email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+            let guestProfile = UserProfile(name: "", username: zoo, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
             user = guestProfile
             LocalStorage.save(guestProfile, to: .profile)
             print("[PROFILE] Гость: создан новый — username='\(zoo)'")
@@ -261,25 +261,22 @@ final class AppState: ObservableObject {
         let savedUsername = UserDefaults.standard.string(forKey: "petio_session_username")
         print("[PROFILE] Авторизован. petio_session_username='\(savedUsername ?? "nil")'")
 
-        // Try to use cached profile first, then refresh from API
         if let cached: UserProfile = LocalStorage.load(from: .profile) {
             user = cached
             print("[PROFILE] Загружен кеш профиля — username='\(cached.username)'")
         }
         do {
             let profile = try await api.fetchProfile()
-            print("[PROFILE] Ответ сервера — username='\(profile.username)', email='\(profile.email ?? "nil")', avatar='\(profile.avatar ?? "nil")'")
+            print("[PROFILE] Ответ сервера — name='\(profile.name)', username='\(profile.username)', avatar='\(profile.avatar ?? "nil")'")
 
             var result = profile
 
-            // Подставляем email из сессии, если сервер не вернул
-            if (result.email ?? "").isEmpty,
-               let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
+            // Подставляем email из сессии (бэкенд не включает email в UserProfile)
+            if let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
                 result.email = savedEmail
                 print("[PROFILE] Email подставлен из сессии: '\(savedEmail)'")
             }
 
-            // Подставляем username из сессии, если сервер не вернул
             let usernameKey = "petio_session_username"
             if result.username.trimmingCharacters(in: .whitespaces).isEmpty {
                 if let saved = UserDefaults.standard.string(forKey: usernameKey) {
@@ -293,32 +290,30 @@ final class AppState: ObservableObject {
                     print("[PROFILE] Username пустой везде, сгенерирован новый: '\(zoo)'")
                 }
             } else {
-                // Сервер вернул username — сохраняем локально
                 UserDefaults.standard.set(result.username, forKey: usernameKey)
                 print("[PROFILE] Username с сервера сохранён: '\(result.username)'")
             }
 
             user = result
             LocalStorage.save(result, to: .profile)
-            print("[PROFILE] Итоговый профиль — username='\(result.username)', email='\(result.email ?? "nil")'")
+            print("[PROFILE] Итоговый профиль — name='\(result.name)', username='\(result.username)', email='\(result.email ?? "nil")'")
         } catch {
             print("[PROFILE] Ошибка загрузки профиля с сервера: \(error)")
 
-            // Fallback: build profile from saved session data so we don't show a random nickname
             let usernameKey = "petio_session_username"
             let fallbackUsername = UserDefaults.standard.string(forKey: usernameKey) ?? ""
             let fallbackEmail = UserDefaults.standard.string(forKey: "petio_session_email")
-            let fallbackAvatar: String? = nil
 
             if !fallbackUsername.isEmpty || fallbackEmail != nil {
                 let fallback = UserProfile(
+                    name: user.name,
                     username: fallbackUsername,
-                    email: fallbackEmail,
-                    avatar: fallbackAvatar,
+                    avatar: nil,
                     bio: user.bio,
                     petsCount: pets.count,
                     postsCount: posts.count,
-                    joinDate: ""
+                    joinDate: "",
+                    email: fallbackEmail
                 )
                 user = fallback
                 LocalStorage.save(fallback, to: .profile)
@@ -328,7 +323,6 @@ final class AppState: ObservableObject {
     }
 
     func resetUserSession() {
-        // Clear all in-memory state
         pets = []
         reminders = []
         weightHistory = [:]
@@ -336,19 +330,17 @@ final class AppState: ObservableObject {
         articles = []
         posts = []
         chatMessages = []
+        currentChatId = nil
         customDiaryTags = []
         selectedPetId = ""
-        user = UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+        user = UserProfile(name: "", username: "", avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
 
-        // Clear all local storage files
         for file in StorageFile.allCases {
             LocalStorage.delete(file: file)
         }
 
-        // Clear API-level cache (CacheManager uses UserDefaults)
         CacheManager().clearAll()
 
-        // Clear all UserDefaults session keys
         UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
     }
@@ -358,7 +350,6 @@ final class AppState: ObservableObject {
         do {
             let added = try await api.addPet(pet)
             pets.append(added)
-            // Add initial weight record if weight > 0
             if added.weight > 0 {
                 let today = Self.dateString(from: Date())
                 let weightRecord = WeightRecord(date: today, weight: added.weight)
@@ -366,7 +357,6 @@ final class AppState: ObservableObject {
             }
         } catch {
             pets.append(pet)
-            // Add initial weight record if weight > 0
             if pet.weight > 0 {
                 let today = Self.dateString(from: Date())
                 let weightRecord = WeightRecord(date: today, weight: pet.weight)
@@ -460,7 +450,8 @@ final class AppState: ObservableObject {
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async {
         do {
-            let added = try await api.addDiaryEntry(entry)
+            var added = try await api.addDiaryEntry(entry)
+            added.tags = entry.tags
             diary.insert(added, at: 0)
         } catch {
             diary.insert(entry, at: 0)
@@ -500,7 +491,6 @@ final class AppState: ObservableObject {
         do {
             try await api.likePost(id: postId, liked: newLiked)
         } catch {
-            // revert optimistic update on error
             guard let j = posts.firstIndex(where: { $0.id == postId }) else { return }
             posts[j].liked.toggle()
             posts[j].likes += posts[j].liked ? 1 : -1
@@ -513,7 +503,6 @@ final class AppState: ObservableObject {
         do {
             try await api.addComment(postId: postId, comment)
         } catch {
-            // revert optimistic update on error
             guard let j = posts.firstIndex(where: { $0.id == postId }) else { return }
             posts[j].comments.removeAll { $0.id == comment.id }
         }
@@ -559,15 +548,44 @@ final class AppState: ObservableObject {
         posts.removeAll { $0.id == id }
     }
 
+    // MARK: - Chat (мульти-чат API)
+
+    /// Отправить сообщение. Автоматически создаёт чат при первом вызове.
     func sendChatMessage(_ text: String) async {
-        let userMsg = ChatMessage(id: UUID().uuidString, role: .user, content: text, timestamp: Date())
+        // Создаём чат если нет текущего
+        if currentChatId == nil {
+            do {
+                let chat = try await api.createChat(title: "")
+                currentChatId = chat.id
+                print("[CHAT] Создан новый чат: \(chat.id)")
+            } catch {
+                let errorMsg = ChatMessage(id: UUID().uuidString, chatId: "", role: "assistant", content: "Не удалось создать чат. Попробуйте позже.")
+                chatMessages.append(errorMsg)
+                return
+            }
+        }
+
+        guard let chatId = currentChatId else { return }
+
+        let userMsg = ChatMessage(id: UUID().uuidString, chatId: chatId, role: "user", content: text)
         chatMessages.append(userMsg)
+
         do {
-            let reply = try await api.sendChatMessage(text)
-            let aiMsg = ChatMessage(id: UUID().uuidString, role: .assistant, content: reply, timestamp: Date())
+            let aiMsg = try await api.sendChatMessage(chatId: chatId, text: text)
             chatMessages.append(aiMsg)
         } catch {
-            chatMessages.append(ChatMessage(id: UUID().uuidString, role: .assistant, content: "Не удалось получить ответ. Попробуйте позже.", timestamp: Date()))
+            let errorMsg = ChatMessage(id: UUID().uuidString, chatId: chatId, role: "assistant", content: "Не удалось получить ответ. Попробуйте позже.")
+            chatMessages.append(errorMsg)
+        }
+    }
+
+    /// Загрузить историю сообщений текущего чата.
+    func loadChatMessages() async {
+        guard let chatId = currentChatId else { return }
+        do {
+            chatMessages = try await api.getChatMessages(chatId: chatId, limit: 50, offset: 0)
+        } catch {
+            print("[CHAT] Ошибка загрузки сообщений: \(error)")
         }
     }
 
@@ -586,18 +604,20 @@ final class AppState: ObservableObject {
 
     func todayReminders() -> [Reminder] {
         let today = Self.dateString(from: Date())
-        return reminders.filter { $0.date <= today }.sorted { $0.date < $1.date }
+        return reminders.filter {
+            DateHelper.normalizeToDateOnly($0.date) <= today
+        }.sorted { $0.date < $1.date }
     }
 
     func upcomingReminders() -> [Reminder] {
         let today = Self.dateString(from: Date())
-        return reminders.filter { $0.date > today }.prefix(3).map { $0 }
+        return reminders.filter {
+            DateHelper.normalizeToDateOnly($0.date) > today
+        }.prefix(3).map { $0 }
     }
 
-    private static func dateString(from date: Date) -> String {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return fmt.string(from: date)
+    static func dateString(from date: Date) -> String {
+        DateHelper.dateString(from: date)
     }
 
     func reminders(forPetId id: String, typeFilter: String?) -> [Reminder] {

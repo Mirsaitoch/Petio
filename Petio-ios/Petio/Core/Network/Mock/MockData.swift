@@ -26,15 +26,14 @@ enum MockData {
                 name: "Барон",
                 species: "Собака",
                 breed: "Золотистый ретривер",
-                age: "3 года",
+                age: 3,
                 weight: 32,
                 photo: dogPhoto,
                 birthDate: "2023-03-15",
                 vaccinations: [
-                    Vaccination(id: "v1", name: "Бешенство", date: "2025-06-10", expirationDate: "2026-06-10"),
-                    Vaccination(id: "v2", name: "DHPP", date: "2025-05-01", expirationDate: "2026-05-01")
+                    Vaccination(id: "v1", name: "Бешенство", date: "2025-06-10", nextDate: "2026-06-10"),
+                    Vaccination(id: "v2", name: "DHPP", date: "2025-05-01", nextDate: "2026-05-01")
                 ],
-                treatments: [],
                 features: ["Аллергия на курицу", "Любит плавать", "Дружелюбный"]
             ),
             Pet(
@@ -42,14 +41,13 @@ enum MockData {
                 name: "Мурка",
                 species: "Кошка",
                 breed: "Британская короткошёрстная",
-                age: "2 года",
+                age: 2,
                 weight: 4.5,
                 photo: catPhoto,
                 birthDate: "2024-01-20",
                 vaccinations: [
-                    Vaccination(id: "v3", name: "Бешенство", date: "2025-08-15", expirationDate: "2026-08-15")
+                    Vaccination(id: "v3", name: "Бешенство", date: "2025-08-15", nextDate: "2026-08-15")
                 ],
-                treatments: [],
                 features: ["Домашняя", "Любит тунец", "Ласковая"]
             ),
             Pet(
@@ -57,12 +55,11 @@ enum MockData {
                 name: "Кеша",
                 species: "Птица",
                 breed: "Волнистый попугай",
-                age: "1 год",
+                age: 1,
                 weight: 0.04,
                 photo: parrotPhoto,
                 birthDate: "2025-02-10",
                 vaccinations: [],
-                treatments: [],
                 features: ["Говорящий", "Любит яблоки", "Активный"]
             )
         ]
@@ -82,20 +79,20 @@ enum MockData {
     static var weightHistory: [String: [WeightRecord]] {
         [
             "1": [
-                WeightRecord(date: "Сен", weight: 29),
-                WeightRecord(date: "Окт", weight: 30),
-                WeightRecord(date: "Ноя", weight: 30.5),
-                WeightRecord(date: "Дек", weight: 31),
-                WeightRecord(date: "Янв", weight: 31.5),
-                WeightRecord(date: "Фев", weight: 32)
+                WeightRecord(date: "2025-09-01", weight: 29),
+                WeightRecord(date: "2025-10-01", weight: 30),
+                WeightRecord(date: "2025-11-01", weight: 30.5),
+                WeightRecord(date: "2025-12-01", weight: 31),
+                WeightRecord(date: "2026-01-01", weight: 31.5),
+                WeightRecord(date: "2026-02-01", weight: 32)
             ],
             "2": [
-                WeightRecord(date: "Сен", weight: 3.8),
-                WeightRecord(date: "Окт", weight: 4.0),
-                WeightRecord(date: "Ноя", weight: 4.1),
-                WeightRecord(date: "Дек", weight: 4.3),
-                WeightRecord(date: "Янв", weight: 4.4),
-                WeightRecord(date: "Фев", weight: 4.5)
+                WeightRecord(date: "2025-09-01", weight: 3.8),
+                WeightRecord(date: "2025-10-01", weight: 4.0),
+                WeightRecord(date: "2025-11-01", weight: 4.1),
+                WeightRecord(date: "2025-12-01", weight: 4.3),
+                WeightRecord(date: "2026-01-01", weight: 4.4),
+                WeightRecord(date: "2026-02-01", weight: 4.5)
             ]
         ]
     }
@@ -103,26 +100,22 @@ enum MockData {
     static var diary: [HealthDiaryEntry] {
         [
             HealthDiaryEntry(id: "d1", petId: "1", date: "2026-02-15",
-                             note: "Барон был активен на прогулке, аппетит хороший. Заметил небольшую сухость на носу.",
-                             tags: []),
+                             note: "Барон был активен на прогулке, аппетит хороший. Заметил небольшую сухость на носу."),
             HealthDiaryEntry(id: "d2", petId: "1", date: "2026-02-10",
-                             note: "Посетили ветеринара — всё в норме. Вес стабильный.",
-                             tags: []),
+                             note: "Посетили ветеринара — всё в норме. Вес стабильный."),
             HealthDiaryEntry(id: "d3", petId: "2", date: "2026-02-14",
-                             note: "Мурка стала меньше есть. Нужно понаблюдать.",
-                             tags: []),
+                             note: "Мурка стала меньше есть. Нужно понаблюдать."),
             HealthDiaryEntry(id: "d4", petId: "2", date: "2026-02-12",
-                             note: "Играла весь день, настроение отличное!",
-                             tags: []),
+                             note: "Играла весь день, настроение отличное!"),
         ]
     }
 
     static var articles: [Article] {
         [
-            Article(id: "a1", title: "Правильное питание для собак", description: "Узнайте, как составить сбалансированный рацион для вашего питомца.", category: "Кормление", image: catFoodImg, petType: "Собака", careType: "Питание", readTime: "5 мин"),
-            Article(id: "a2", title: "Вакцинация кошек: полный гид", description: "Какие прививки нужны вашей кошке и когда их делать.", category: "Здоровье", image: vetImg, petType: "Кошка", careType: "Вакцинация", readTime: "7 мин"),
-            Article(id: "a3", title: "Груминг собак в домашних условиях", description: "Пошаговое руководство по уходу за шерстью, когтями и зубами.", category: "Груминг", image: groomingImg, petType: "Собака", careType: "Груминг", readTime: "6 мин"),
-            Article(id: "a4", title: "Уход за попугаем: шпаргалка", description: "Всё, что нужно знать о содержании попугаев.", category: "Общий уход", image: parrotPhoto, petType: "Птица", careType: "Общий уход", readTime: "4 мин")
+            Article(id: "a1", title: "Правильное питание для собак", description: "Узнайте, как составить сбалансированный рацион для вашего питомца.", category: "Кормление", image: catFoodImg, petType: "Собака", careType: "Питание", readTime: 5),
+            Article(id: "a2", title: "Вакцинация кошек: полный гид", description: "Какие прививки нужны вашей кошке и когда их делать.", category: "Здоровье", image: vetImg, petType: "Кошка", careType: "Вакцинация", readTime: 7),
+            Article(id: "a3", title: "Груминг собак в домашних условиях", description: "Пошаговое руководство по уходу за шерстью, когтями и зубами.", category: "Груминг", image: groomingImg, petType: "Собака", careType: "Груминг", readTime: 6),
+            Article(id: "a4", title: "Уход за попугаем: шпаргалка", description: "Всё, что нужно знать о содержании попугаев.", category: "Общий уход", image: parrotPhoto, petType: "Птица", careType: "Общий уход", readTime: 4)
         ]
     }
 
@@ -171,8 +164,8 @@ enum MockData {
 
     static var user: UserProfile {
         UserProfile(
+            name: "Елена",
             username: "elena_pets",
-            email: "elena@example.com",
             avatar: userAvatar,
             bio: "Люблю животных! Хозяйка Барона, Мурки и Кеши",
             petsCount: 3,

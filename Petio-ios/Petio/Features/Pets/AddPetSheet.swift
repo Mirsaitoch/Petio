@@ -318,17 +318,23 @@ struct AddPetSheet: View {
             ? (trimmedCustom.isEmpty ? "Другое" : trimmedCustom)
             : species
         let normalizedWeight = weight.replacingOccurrences(of: ",", with: ".")
+        let cal = Calendar.current
+        let ageYears: Int
+        if let bd = Self.isoFormatter.date(from: birthString) {
+            ageYears = cal.dateComponents([.year], from: bd, to: Date()).year ?? 0
+        } else {
+            ageYears = 0
+        }
         let pet = Pet(
             id: UUID().uuidString,
             name: name.trimmingCharacters(in: .whitespaces),
             species: finalSpecies,
             breed: breed.isEmpty ? "Не указана" : breed,
-            age: PetAgeCalculator.computedAge(from: birthString),
+            age: ageYears,
             weight: max(0, Double(normalizedWeight) ?? 0),
             photo: photoPath,
             birthDate: birthString,
             vaccinations: [],
-            treatments: [],
             features: features.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         )
         onSave(pet)

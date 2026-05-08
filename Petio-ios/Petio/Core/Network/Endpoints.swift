@@ -2,12 +2,13 @@
 //  Endpoints.swift
 //  Petio
 //
-
+//  Пути API эндпоинтов. Синхронизированы с backend/internal/transport/http/router.go.
+//
 
 import Foundation
 
 enum Endpoints {
-    static var baseURL: URL? { URL(string: "http://localhost:8080/v1") }
+    static var baseURL: URL? { URL(string: "http://158.160.235.224/v1") }
 
     // Питомцы
     static func pets() -> String { "/pets" }
@@ -22,6 +23,7 @@ enum Endpoints {
 
     // Дневник здоровья
     static func diaryEntries(petId: String) -> String { "/pets/\(petId)/diary" }
+    static func diaryEntry(id: String) -> String { "/diary/\(id)" }
 
     // Статьи
     static func articles() -> String { "/articles" }
@@ -33,8 +35,16 @@ enum Endpoints {
     static func likePost(id: String) -> String { "/posts/\(id)/like" }
     static func comments(postId: String) -> String { "/posts/\(postId)/comments" }
 
-    // Чат / AI
-    static func chatSend() -> String { "/chat/send" }
+    // Чат / AI (мульти-чат)
+    static func chats() -> String { "/chats" }
+    static func chat(id: String) -> String { "/chats/\(id)" }
+    static func chatMessages(chatId: String) -> String { "/chats/\(chatId)/messages" }
+    static func chatStats() -> String { "/chats/stats" }
+
+    // Загрузка файлов
+    static func uploadPostImage() -> String { "/upload/post-image" }
+    static func uploadPetPhoto() -> String { "/upload/pet-photo" }
+    static func uploadAvatar() -> String { "/upload/avatar" }
 
     // Пользователь
     static func profile() -> String { "/profile" }

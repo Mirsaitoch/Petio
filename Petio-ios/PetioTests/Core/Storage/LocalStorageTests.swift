@@ -10,9 +10,9 @@ class LocalStorageTests: XCTestCase {
 
     func testSaveAndLoadArray() {
         let pets: [Pet] = [
-            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: "2",
+            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: 2,
                 weight: 20.0, photo: nil, birthDate: "2024-01-01",
-                vaccinations: [], treatments: [], features: [])
+                vaccinations: [], features: [])
         ]
         LocalStorage.save(pets, to: .pets)
         let loaded: [Pet]? = LocalStorage.load(from: .pets)
@@ -27,9 +27,9 @@ class LocalStorageTests: XCTestCase {
 
     func testDeleteRemovesFile() {
         let pets: [Pet] = [
-            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: "2",
+            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: 2,
                 weight: 20.0, photo: nil, birthDate: "2024-01-01",
-                vaccinations: [], treatments: [], features: [])
+                vaccinations: [], features: [])
         ]
         LocalStorage.save(pets, to: .pets)
         LocalStorage.delete(file: .pets)
@@ -39,9 +39,9 @@ class LocalStorageTests: XCTestCase {
 
     func testOverwriteUpdatesExistingFile() {
         let pets1: [Pet] = [
-            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: "2",
+            Pet(id: "1", name: "Бобик", species: "Собака", breed: "Хаски", age: 2,
                 weight: 20.0, photo: nil, birthDate: "2024-01-01",
-                vaccinations: [], treatments: [], features: [])
+                vaccinations: [], features: [])
         ]
         let pets2: [Pet] = []
         LocalStorage.save(pets1, to: .pets)

@@ -35,7 +35,6 @@ extension ReminderType {
         case .vaccination: return "syringe"
         case .deworming: return "ant"
         case .grooming: return "scissors"
-        case .other: return "tag"
         }
     }
 
@@ -45,7 +44,6 @@ extension ReminderType {
         case .vaccination: return PetCareTheme.reminderVaccination
         case .deworming: return PetCareTheme.reminderDeworming
         case .grooming: return PetCareTheme.reminderGrooming
-        case .other: return .purple
         }
     }
 }

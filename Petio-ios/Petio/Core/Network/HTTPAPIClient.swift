@@ -3,7 +3,7 @@
 //  Petio
 //
 //  Real HTTP implementation of APIClientProtocol using URLSession.
-//  Attaches JWT token to every request. Auto-logout on 401.
+//  Attaches JWT token to every request. Auto-refresh on 401.
 //
 
 import Foundation
@@ -14,7 +14,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     private let authManager: AuthManager
     private let cacheManager = CacheManager()
 
-    init(authManager: AuthManager, baseURL: String = "http://localhost:8080/v1") {
+    init(authManager: AuthManager, baseURL: String = "http://158.160.235.224/v1") {
         self.authManager = authManager
         self.baseURL = baseURL
     }
@@ -25,7 +25,8 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         path: String,
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
-        body: Data? = nil
+        body: Data? = nil,
+        includeAuth: Bool = true
     ) throws -> URLRequest {
         guard var components = URLComponents(string: baseURL + path) else {
             throw APIError.invalidURL
@@ -37,7 +38,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = authManager.getToken() {
+        if includeAuth, let token = authManager.getToken() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         req.httpBody = body
@@ -45,13 +46,34 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+        logRequest(request)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.network(URLError(.badServerResponse))
         }
+        logResponse(http, data)
         if http.statusCode == 401 {
-            authManager.deleteToken()
-            throw APIError.server(401)
+            if let _ = try? await refreshAccessToken() {
+                var retryRequest = request
+                if let newToken = authManager.getToken() {
+                    retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                }
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else {
+                    throw APIError.network(URLError(.badServerResponse))
+                }
+                guard (200..<300).contains(retryHttp.statusCode) else {
+                    throw APIError.server(retryHttp.statusCode)
+                }
+                do {
+                    return try JSONDecoder().decode(T.self, from: retryData)
+                } catch {
+                    throw APIError.decoding(error)
+                }
+            } else {
+                authManager.deleteToken()
+                throw APIError.server(401)
+            }
         }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(http.statusCode)
@@ -64,16 +86,80 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     private func performVoid(_ request: URLRequest) async throws {
+        logRequest(request)
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.network(URLError(.badServerResponse))
         }
         if http.statusCode == 401 {
-            authManager.deleteToken()
-            throw APIError.server(401)
+            if let _ = try? await refreshAccessToken() {
+                var retryRequest = request
+                if let newToken = authManager.getToken() {
+                    retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                }
+                let (_, retryResponse) = try await URLSession.shared.data(for: retryRequest)
+                guard let retryHttp = retryResponse as? HTTPURLResponse else {
+                    throw APIError.network(URLError(.badServerResponse))
+                }
+                guard (200..<300).contains(retryHttp.statusCode) else {
+                    throw APIError.server(retryHttp.statusCode)
+                }
+                return
+            } else {
+                authManager.deleteToken()
+                throw APIError.server(401)
+            }
         }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(http.statusCode)
+        }
+    }
+
+    private func refreshAccessToken() async throws -> String {
+        print("[API] refreshAccessToken: starting")
+        guard let refreshToken = authManager.getRefreshToken() else {
+            print("[API] refreshAccessToken: no refreshToken found")
+            throw APIError.server(401)
+        }
+
+        struct RefreshRequest: Encodable {
+            let refreshToken: String
+        }
+
+        struct RefreshResponse: Decodable {
+            let token: String
+            let refreshToken: String
+        }
+
+        let request = try makeRequest(
+            path: "/auth/refresh",
+            method: "POST",
+            body: encode(RefreshRequest(refreshToken: refreshToken)),
+            includeAuth: false
+        )
+
+        print("[API] refreshAccessToken: sending request")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            print("[API] refreshAccessToken: bad response")
+            throw APIError.network(URLError(.badServerResponse))
+        }
+
+        print("[API] refreshAccessToken: got status \(http.statusCode)")
+        guard (200..<300).contains(http.statusCode) else {
+            print("[API] refreshAccessToken: refresh failed with status \(http.statusCode)")
+            throw APIError.server(http.statusCode)
+        }
+
+        do {
+            let refreshResponse = try JSONDecoder().decode(RefreshResponse.self, from: data)
+            authManager.saveToken(refreshResponse.token)
+            authManager.saveRefreshToken(refreshResponse.refreshToken)
+            print("[API] refreshAccessToken: success, new token saved")
+            return refreshResponse.token
+        } catch {
+            print("[API] refreshAccessToken: decoding failed - \(error)")
+            throw APIError.decoding(error)
         }
     }
 
@@ -111,7 +197,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func fetchPets() async throws -> [Pet] {
         do {
-            let pets: [Pet] = try await perform(try makeRequest(path: "/pets"))
+            let pets: [Pet] = try await perform(try makeRequest(path: Endpoints.pets()))
             cacheManager.savePets(pets)
             return pets
         } catch let error {
@@ -124,19 +210,19 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func fetchPet(id: String) async throws -> Pet? {
-        try await perform(try makeRequest(path: "/pets/\(id)"))
+        try await perform(try makeRequest(path: Endpoints.pet(id: id)))
     }
 
     func addPet(_ pet: Pet) async throws -> Pet {
-        try await perform(try makeRequest(path: "/pets", method: "POST", body: encode(pet)))
+        try await perform(try makeRequest(path: Endpoints.pets(), method: "POST", body: encode(pet)))
     }
 
     func updatePet(_ pet: Pet) async throws -> Pet {
-        try await perform(try makeRequest(path: "/pets/\(pet.id)", method: "PUT", body: encode(pet)))
+        try await perform(try makeRequest(path: Endpoints.pet(id: pet.id), method: "PUT", body: encode(pet)))
     }
 
     func deletePet(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/pets/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.pet(id: id), method: "DELETE"))
     }
 
     // MARK: - Reminders
@@ -145,7 +231,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         do {
             var qi: [URLQueryItem] = []
             if let id = petId { qi = [URLQueryItem(name: "petId", value: id)] }
-            let reminders: [Reminder] = try await perform(try makeRequest(path: "/reminders", queryItems: qi))
+            let reminders: [Reminder] = try await perform(try makeRequest(path: Endpoints.reminders(), queryItems: qi))
             cacheManager.saveReminders(reminders)
             return reminders
         } catch let error {
@@ -158,32 +244,32 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func addReminder(_ reminder: Reminder) async throws -> Reminder {
-        try await perform(try makeRequest(path: "/reminders", method: "POST", body: encode(reminder)))
+        try await perform(try makeRequest(path: Endpoints.reminders(), method: "POST", body: encode(reminder)))
     }
 
     func updateReminder(_ reminder: Reminder) async throws -> Reminder {
-        try await perform(try makeRequest(path: "/reminders/\(reminder.id)", method: "PUT", body: encode(reminder)))
+        try await perform(try makeRequest(path: Endpoints.reminder(id: reminder.id), method: "PUT", body: encode(reminder)))
     }
 
     func deleteReminder(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/reminders/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.reminder(id: id), method: "DELETE"))
     }
 
     // MARK: - Weight
 
     func fetchWeightHistory(petId: String) async throws -> [WeightRecord] {
-        try await perform(try makeRequest(path: "/pets/\(petId)/weight"))
+        try await perform(try makeRequest(path: Endpoints.weightRecords(petId: petId)))
     }
 
     func addWeightRecord(petId: String, _ record: WeightRecord) async throws {
-        try await performVoid(try makeRequest(path: "/pets/\(petId)/weight", method: "POST", body: encode(record)))
+        try await performVoid(try makeRequest(path: Endpoints.weightRecords(petId: petId), method: "POST", body: encode(record)))
     }
 
     // MARK: - Diary
 
     func fetchDiary(petId: String) async throws -> [HealthDiaryEntry] {
         do {
-            let entries: [HealthDiaryEntry] = try await perform(try makeRequest(path: "/pets/\(petId)/diary"))
+            let entries: [HealthDiaryEntry] = try await perform(try makeRequest(path: Endpoints.diaryEntries(petId: petId)))
             cacheManager.saveDiaryEntries(entries)
             return entries
         } catch let error {
@@ -196,37 +282,43 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async throws -> HealthDiaryEntry {
-        try await perform(try makeRequest(path: "/pets/\(entry.petId)/diary", method: "POST", body: encode(entry)))
+        try await perform(try makeRequest(path: Endpoints.diaryEntries(petId: entry.petId), method: "POST", body: encode(entry)))
     }
 
     func updateDiaryEntry(_ entry: HealthDiaryEntry) async throws {
-        try await performVoid(try makeRequest(path: "/diary/\(entry.id)", method: "PUT", body: encode(entry)))
+        try await performVoid(try makeRequest(path: Endpoints.diaryEntry(id: entry.id), method: "PUT", body: encode(entry)))
     }
 
     func deleteDiaryEntry(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/diary/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.diaryEntry(id: id), method: "DELETE"))
     }
 
     // MARK: - Articles
 
     func fetchArticles() async throws -> [Article] {
-        try await perform(try makeRequest(path: "/articles"))
+        try await perform(try makeRequest(path: Endpoints.articles()))
     }
 
     // MARK: - Posts
 
-    func fetchPosts(club: String?) async throws -> [Post] {
+    func fetchPosts(
+        club: String?,
+        limit: Int = 20,
+        afterID: String? = nil,
+        beforeID: String? = nil
+    ) async throws -> PostsResponse {
         var qi: [URLQueryItem] = []
-        if let club = club, club != "Все" { qi = [URLQueryItem(name: "club", value: club)] }
-        print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', queryItems=\(qi.map { "\($0.name)=\($0.value ?? "")" })")
+        if limit != 0 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if let afterID = afterID { qi.append(URLQueryItem(name: "after_id", value: afterID)) }
+        if let beforeID = beforeID { qi.append(URLQueryItem(name: "before_id", value: beforeID)) }
+        if let club = club, club != "Все" { qi.append(URLQueryItem(name: "club", value: club)) }
+
+        print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', limit=\(limit), afterID=\(afterID ?? "nil"), beforeID=\(beforeID ?? "nil")")
+
         do {
-            let posts: [Post] = try await perform(try makeRequest(path: "/posts", queryItems: qi))
-            print("[POSTS] fetchPosts успех: получено \(posts.count) постов")
-            for (i, post) in posts.prefix(3).enumerated() {
-                print("[POSTS]   [\(i)] id=\(post.id), author='\(post.author)', content='\(post.content.prefix(50))', image=\(post.image ?? "nil"), likes=\(post.likes)")
-            }
-            if posts.count > 3 { print("[POSTS]   ... и ещё \(posts.count - 3) постов") }
-            return posts
+            let response: PostsResponse = try await perform(try makeRequest(path: Endpoints.posts(), queryItems: qi))
+            print("[POSTS] fetchPosts успех: получено \(response.posts.count) постов, hasMore=\(response.hasMore), hasNew=\(response.hasNew)")
+            return response
         } catch {
             print("[POSTS] fetchPosts ошибка: \(error)")
             throw error
@@ -236,7 +328,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func addPost(_ post: Post) async throws -> Post {
         print("[POSTS] addPost запрос: author='\(post.author)', content='\(post.content.prefix(50))', club='\(post.club)', image=\(post.image ?? "nil")")
         do {
-            let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
+            let result: Post = try await perform(try makeRequest(path: Endpoints.posts(), method: "POST", body: encode(post)))
             print("[POSTS] addPost успех: id=\(result.id), image=\(result.image ?? "nil")")
             return result
         } catch {
@@ -247,20 +339,18 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post {
         print("[POSTS] addPostWithImage запрос: author='\(post.author)', content='\(post.content.prefix(50))', imageSize=\(imageData.count) bytes")
-        // Step 1: upload image, get URL from /upload/post-image
         let imageURL = try await uploadPostImage(imageData: imageData)
         print("[POSTS] addPostWithImage: imageURL='\(imageURL)'")
-        // Step 2: create post via JSON with image URL
         var postWithImage = post
         postWithImage.image = imageURL
-        let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(postWithImage)))
+        let result: Post = try await perform(try makeRequest(path: Endpoints.posts(), method: "POST", body: encode(postWithImage)))
         print("[POSTS] addPostWithImage успех: id=\(result.id), image=\(result.image ?? "nil")")
         return result
     }
 
     private func uploadPostImage(imageData: Data) async throws -> String {
         let boundary = UUID().uuidString
-        guard let url = URLComponents(string: baseURL + "/upload/post-image")?.url else {
+        guard let url = URLComponents(string: baseURL + Endpoints.uploadPostImage())?.url else {
             throw APIError.invalidURL
         }
         var req = URLRequest(url: url)
@@ -291,34 +381,84 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func likePost(id: String, liked: Bool) async throws {
         struct LikeBody: Encodable { let liked: Bool }
         try await performVoid(try makeRequest(
-            path: "/posts/\(id)/like", method: "POST", body: encode(LikeBody(liked: liked))
+            path: Endpoints.likePost(id: id), method: "POST", body: encode(LikeBody(liked: liked))
         ))
     }
 
     func addComment(postId: String, _ comment: Comment) async throws {
         try await performVoid(try makeRequest(
-            path: "/posts/\(postId)/comments", method: "POST", body: encode(comment)
+            path: Endpoints.comments(postId: postId), method: "POST", body: encode(comment)
         ))
     }
 
-    // MARK: - Chat
+    // MARK: - Chat (мульти-чат API)
 
-    func sendChatMessage(_ text: String) async throws -> String {
-        struct SendBody: Encodable { let text: String }
-        struct ChatResponse: Decodable { let reply: String }
-        let resp: ChatResponse = try await perform(try makeRequest(
-            path: "/chat/send", method: "POST", body: encode(SendBody(text: text))
+    func createChat(title: String = "") async throws -> Chat {
+        struct CreateBody: Encodable { let title: String }
+        return try await perform(try makeRequest(
+            path: Endpoints.chats(), method: "POST", body: encode(CreateBody(title: title))
         ))
-        return resp.reply
+    }
+
+    func listChats(limit: Int = 20, offset: Int = 0) async throws -> [Chat] {
+        var qi: [URLQueryItem] = []
+        if limit != 20 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if offset != 0 { qi.append(URLQueryItem(name: "offset", value: String(offset))) }
+        return try await perform(try makeRequest(path: Endpoints.chats(), queryItems: qi))
+    }
+
+    func getChat(id: String) async throws -> Chat {
+        try await perform(try makeRequest(path: Endpoints.chat(id: id)))
+    }
+
+    func deleteChat(id: String) async throws {
+        try await performVoid(try makeRequest(path: Endpoints.chat(id: id), method: "DELETE"))
+    }
+
+    func getChatMessages(chatId: String, limit: Int = 50, offset: Int = 0) async throws -> [ChatMessage] {
+        var qi: [URLQueryItem] = []
+        if limit != 50 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if offset != 0 { qi.append(URLQueryItem(name: "offset", value: String(offset))) }
+        return try await perform(try makeRequest(path: Endpoints.chatMessages(chatId: chatId), queryItems: qi))
+    }
+
+    func sendChatMessage(chatId: String, text: String) async throws -> ChatMessage {
+        struct SendBody: Encodable { let text: String }
+        return try await perform(try makeRequest(
+            path: Endpoints.chatMessages(chatId: chatId), method: "POST", body: encode(SendBody(text: text))
+        ))
     }
 
     // MARK: - Profile
 
     func fetchProfile() async throws -> UserProfile {
-        try await perform(try makeRequest(path: "/profile"))
+        try await perform(try makeRequest(path: Endpoints.profile()))
     }
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
-        try await perform(try makeRequest(path: "/profile", method: "PUT", body: encode(profile)))
+        try await perform(try makeRequest(path: Endpoints.profile(), method: "PUT", body: encode(profile)))
     }
+
+    private func logRequest(_ request: URLRequest) {
+        let method = request.httpMethod ?? "GET"
+        let url = request.url?.absoluteString ?? "unknown"
+        let hasAuth = request.value(forHTTPHeaderField: "Authorization") != nil
+        print("[API] \(method) \(url) \(hasAuth ? "(auth)" : "(no auth)")")
+        if let body = request.httpBody, let bodyStr = String(data: body, encoding: .utf8) {
+            print("[API] Body: \(bodyStr)")
+        }
+    }
+
+    private func logResponse(_ response: HTTPURLResponse, _ data: Data) {
+        let status = response.statusCode
+        let url = response.url?.absoluteString ?? "unknown"
+        print("[API] Response \(status) from \(url)")
+        if let responseStr = String(data: data, encoding: .utf8) {
+            print("[API] Data: \(responseStr.prefix(200))")
+        }
+    }
+}
+
+extension HTTPAPIClient {
+    static let shared = HTTPAPIClient(authManager: AuthManager.shared)
 }

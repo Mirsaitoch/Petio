@@ -37,13 +37,9 @@ struct EmailVerificationView: View {
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.center)
                     .font(.title3)
-                    .onChange(of: code) { newValue in
+                    .onChange(of: code) { _, newValue in
                         let filtered = newValue.filter { $0.isNumber }
-                        if filtered.count > 6 {
-                            code = String(filtered.prefix(6))
-                        } else {
-                            code = filtered
-                        }
+                        code = String(filtered.prefix(6))
                     }
             }
 

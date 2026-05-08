@@ -64,10 +64,10 @@ func (r *UserRepository) Create(ctx context.Context, u *domain.User) error {
 
 func (r *UserRepository) GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error) {
 	var p domain.UserProfile
-	var avatar sql.NullString
+	var avatar, email sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT name, username, avatar, bio, join_date FROM users WHERE id = $1`, userID,
-	).Scan(&p.Name, &p.Username, &avatar, &p.Bio, &p.JoinDate)
+		`SELECT name, username, avatar, bio, join_date, email FROM users WHERE id = $1`, userID,
+	).Scan(&p.Name, &p.Username, &avatar, &p.Bio, &p.JoinDate, &email)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -76,6 +76,9 @@ func (r *UserRepository) GetProfile(ctx context.Context, userID string) (*domain
 	}
 	if avatar.Valid {
 		p.Avatar = &avatar.String
+	}
+	if email.Valid {
+		p.Email = &email.String
 	}
 	p.UserID = userID
 	var petsCount, postsCount int

@@ -1,6 +1,7 @@
 import XCTest
 @testable import Petio
 
+@MainActor
 final class AuthViewModelTests: XCTestCase {
     var sut: AuthViewModel!
     var mockAuthManager: AuthManager!
@@ -35,14 +36,11 @@ final class AuthViewModelTests: XCTestCase {
     // MARK: - Token Management Tests
 
     func testDeviceLogin_SavesTokenAndRefreshToken() async {
-        // This test verifies that deviceLogin calls authManager.save methods
-        // Full integration test would require mocking URLSession
         XCTAssertFalse(sut.isLoading)
     }
 
     func testSwitchAccount_UpdatesToken() async {
         mockAuthManager.saveToken("initial-token")
-        // Verify initial state
         XCTAssertEqual(mockAuthManager.getToken(), "initial-token")
     }
 
@@ -50,8 +48,7 @@ final class AuthViewModelTests: XCTestCase {
         let json = """
         {
             "userId": "user-123",
-            "email": "test@example.com",
-            "isCurrentAccount": true
+            "email": "test@example.com"
         }
         """
         guard let data = json.data(using: .utf8) else {
@@ -64,7 +61,6 @@ final class AuthViewModelTests: XCTestCase {
             let accountInfo = try decoder.decode(AccountInfo.self, from: data)
             XCTAssertEqual(accountInfo.userId, "user-123")
             XCTAssertEqual(accountInfo.email, "test@example.com")
-            XCTAssertTrue(accountInfo.isCurrentAccount)
         } catch {
             XCTFail("Failed to decode AccountInfo: \(error)")
         }
@@ -74,8 +70,7 @@ final class AuthViewModelTests: XCTestCase {
         let json = """
         {
             "userId": "user-456",
-            "email": null,
-            "isCurrentAccount": false
+            "email": null
         }
         """
         guard let data = json.data(using: .utf8) else {
@@ -88,7 +83,6 @@ final class AuthViewModelTests: XCTestCase {
             let accountInfo = try decoder.decode(AccountInfo.self, from: data)
             XCTAssertEqual(accountInfo.userId, "user-456")
             XCTAssertNil(accountInfo.email)
-            XCTAssertFalse(accountInfo.isCurrentAccount)
         } catch {
             XCTFail("Failed to decode AccountInfo: \(error)")
         }

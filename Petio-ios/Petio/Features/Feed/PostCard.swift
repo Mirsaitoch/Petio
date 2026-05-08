@@ -24,12 +24,20 @@ struct PostCard: View {
     let onSendComment: () -> Void
     let onLike: () -> Void
 
+    private var displayName: String {
+        let name = post.author.trimmingCharacters(in: .whitespaces)
+        if name.isEmpty {
+            return String(post.id.prefix(8))
+        }
+        return name
+    }
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack(alignment: .top, spacing: 10) {
-                CircleAvatarView(url: post.avatar, fallbackLetter: String(post.author.prefix(1)), size: 36)
+                CircleAvatarView(url: post.avatar, fallbackLetter: String(displayName.prefix(1).uppercased()), size: 36)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.author)
+                    Text(displayName)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(PetCareTheme.primary)
                     HStack(spacing: 6) {
@@ -116,9 +124,10 @@ struct PostCard: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(post.comments) { c in
                         HStack(alignment: .top, spacing: 8) {
-                            CircleAvatarView(url: c.avatar, fallbackLetter: String(c.author.prefix(1)), size: 28)
+                            let cName = c.author.trimmingCharacters(in: .whitespaces).isEmpty ? String(c.id.prefix(8)) : c.author
+                            CircleAvatarView(url: c.avatar, fallbackLetter: String(cName.prefix(1).uppercased()), size: 28)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(c.author)
+                                Text(cName)
                                     .font(.system(size: 11))
                                     .foregroundColor(PetCareTheme.primary)
                                 Text(c.content)

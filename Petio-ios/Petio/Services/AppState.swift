@@ -271,13 +271,8 @@ final class AppState: ObservableObject {
 
             var result = profile
 
-            // Подставляем email из сессии (бэкенд не включает email в UserProfile)
-            if let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
-                result.email = savedEmail
-                print("[PROFILE] Email подставлен из сессии: '\(savedEmail)'")
-            }
-
             let usernameKey = "petio_session_username"
+            var needsSyncUsername = false
             if result.username.trimmingCharacters(in: .whitespaces).isEmpty {
                 if let saved = UserDefaults.standard.string(forKey: usernameKey) {
                     result.username = saved
@@ -289,6 +284,7 @@ final class AppState: ObservableObject {
                     result.username = zoo
                     print("[PROFILE] Username пустой везде, сгенерирован новый: '\(zoo)'")
                 }
+                needsSyncUsername = true
             } else {
                 UserDefaults.standard.set(result.username, forKey: usernameKey)
                 print("[PROFILE] Username с сервера сохранён: '\(result.username)'")
@@ -297,14 +293,18 @@ final class AppState: ObservableObject {
             user = result
             LocalStorage.save(result, to: .profile)
             print("[PROFILE] Итоговый профиль — name='\(result.name)', username='\(result.username)', email='\(result.email ?? "nil")'")
+
+            if needsSyncUsername {
+                print("[PROFILE] Синхронизация username на сервер: '\(result.username)'")
+                try? await api.updateProfile(result)
+            }
         } catch {
             print("[PROFILE] Ошибка загрузки профиля с сервера: \(error)")
 
             let usernameKey = "petio_session_username"
             let fallbackUsername = UserDefaults.standard.string(forKey: usernameKey) ?? ""
-            let fallbackEmail = UserDefaults.standard.string(forKey: "petio_session_email")
 
-            if !fallbackUsername.isEmpty || fallbackEmail != nil {
+            if !fallbackUsername.isEmpty {
                 let fallback = UserProfile(
                     name: user.name,
                     username: fallbackUsername,
@@ -312,12 +312,11 @@ final class AppState: ObservableObject {
                     bio: user.bio,
                     petsCount: pets.count,
                     postsCount: posts.count,
-                    joinDate: "",
-                    email: fallbackEmail
+                    joinDate: ""
                 )
                 user = fallback
                 LocalStorage.save(fallback, to: .profile)
-                print("[PROFILE] Fallback профиль из UserDefaults — username='\(fallbackUsername)', email='\(fallbackEmail ?? "nil")'")
+                print("[PROFILE] Fallback профиль из UserDefaults — username='\(fallbackUsername)'")
             }
         }
     }
@@ -341,7 +340,6 @@ final class AppState: ObservableObject {
 
         CacheManager().clearAll()
 
-        UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
     }
 

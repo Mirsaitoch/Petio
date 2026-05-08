@@ -3,7 +3,7 @@
 //  Petio
 //
 //  Entry point with device-based auth flow.
-//  Routes to DeviceLoginView → EmailLinkingPromptView → AppTabView
+//  Routes to DeviceLoginView → AppTabView
 //
 
 import SwiftUI

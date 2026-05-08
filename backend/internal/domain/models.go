@@ -99,6 +99,7 @@ type UserProfile struct {
 	PetsCount  int       `json:"petsCount" db:"pets_count"`
 	PostsCount int       `json:"postsCount" db:"posts_count"`
 	JoinDate   time.Time `json:"joinDate" db:"join_date"`
+	Email      *string   `json:"email,omitempty" db:"email"`
 	UserID     string    `json:"-" db:"user_id"`
 }
 

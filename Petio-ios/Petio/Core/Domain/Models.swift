@@ -275,10 +275,9 @@ struct UserProfile: Equatable, Codable {
     var postsCount: Int
     var joinDate: String
 
-    /// Email хранится только локально (бэкенд UserProfile не включает email).
     var email: String?
 
     enum CodingKeys: String, CodingKey {
-        case name, username, avatar, bio, petsCount, postsCount, joinDate
+        case name, username, avatar, bio, petsCount, postsCount, joinDate, email
     }
 }

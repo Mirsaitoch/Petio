@@ -48,9 +48,10 @@ struct NewPostSheet: View {
                         ProgressView()
                     } else {
                         Button("Опубликовать") {
+                            let displayName = user.username.trimmingCharacters(in: .whitespaces).isEmpty ? "пользователь" : user.username
                             let post = Post(
                                 id: UUID().uuidString,
-                                author: user.username,
+                                author: displayName,
                                 avatar: user.avatar,
                                 content: content,
                                 image: nil,

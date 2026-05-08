@@ -1,6 +1,7 @@
 import XCTest
 @testable import Petio
 
+@MainActor
 final class DeviceAuthIntegrationTests: XCTestCase {
     var authManager: AuthManager!
     var authViewModel: AuthViewModel!
@@ -80,8 +81,7 @@ final class DeviceAuthIntegrationTests: XCTestCase {
         let json = """
         {
             "userId": "user-123",
-            "email": "test@example.com",
-            "isCurrentAccount": true
+            "email": "test@example.com"
         }
         """
         let data = try XCTUnwrap(json.data(using: .utf8))
@@ -89,15 +89,13 @@ final class DeviceAuthIntegrationTests: XCTestCase {
 
         XCTAssertEqual(accountInfo.userId, "user-123")
         XCTAssertEqual(accountInfo.email, "test@example.com")
-        XCTAssertTrue(accountInfo.isCurrentAccount)
     }
 
     func testAccountInfo_WithNullEmail_DecodesSuccessfully() throws {
         let json = """
         {
             "userId": "user-456",
-            "email": null,
-            "isCurrentAccount": false
+            "email": null
         }
         """
         let data = try XCTUnwrap(json.data(using: .utf8))
@@ -105,6 +103,20 @@ final class DeviceAuthIntegrationTests: XCTestCase {
 
         XCTAssertEqual(accountInfo.userId, "user-456")
         XCTAssertNil(accountInfo.email)
-        XCTAssertFalse(accountInfo.isCurrentAccount)
+    }
+
+    // MARK: - Skip Email Linking
+
+    func testSkipEmailLinking_AuthenticatesUser() {
+        authManager.saveToken("test-token")
+        authManager.saveRefreshToken("test-refresh")
+        authManager.setAuthenticated(false)
+        authViewModel = AuthViewModel(authManager: authManager)
+        authViewModel.showEmailLinking = true
+
+        authViewModel.skipEmailLinking()
+
+        XCTAssertTrue(authViewModel.isAuthenticated)
+        XCTAssertFalse(authViewModel.showEmailLinking)
     }
 }

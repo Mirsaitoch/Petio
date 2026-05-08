@@ -32,7 +32,7 @@ struct AuthPromptSheet: View {
 
             // Text
             VStack(spacing: 8) {
-                Text("Нужен аккаунт")
+                Text("Нужна привязка email")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(PetCareTheme.primary)
                 Text(message)
@@ -48,7 +48,7 @@ struct AuthPromptSheet: View {
                     isPresented = false
                     onLogin()
                 } label: {
-                    Text("Войти / Зарегистрироваться")
+                    Text("Привязать email")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)

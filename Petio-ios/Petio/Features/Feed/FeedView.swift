@@ -27,7 +27,7 @@ struct FeedView: View {
     @State private var commentText: [String: String] = [:]
     @State private var showAuthPrompt = false
     @State private var authPromptMessage = ""
-    @State private var showAuthView = false
+    @State private var showEmailLinking = false
 
     private let clubs = ["Все", "Собаки", "Кошки", "Птицы", "Кролики", "Экзотика"]
 
@@ -81,11 +81,17 @@ struct FeedView: View {
             AuthPromptSheet(
                 isPresented: $showAuthPrompt,
                 message: authPromptMessage,
-                onLogin: { showAuthView = true }
+                onLogin: { showEmailLinking = true }
             )
         }
-        .fullScreenCover(isPresented: $showAuthView) {
-            AuthView()
+        .sheet(isPresented: $showEmailLinking) {
+            ProfileEmailLinkingView(
+                authManager: authManager,
+                onComplete: {
+                    showEmailLinking = false
+                    Task { await app.loadProfile() }
+                }
+            )
         }
         .sheet(isPresented: $showNewPost) {
             NewPostSheet(user: app.user) { post, image in
@@ -123,10 +129,10 @@ struct FeedView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    if authManager.isAuthenticated {
+                    if app.user.email != nil {
                         showNewPost = true
                     } else {
-                        authPromptMessage = "Чтобы создавать посты, войдите в аккаунт - это бесплатно"
+                        authPromptMessage = "Чтобы создавать посты, привяжите email к аккаунту"
                         showAuthPrompt = true
                     }
                 } label: {
@@ -215,8 +221,8 @@ struct FeedView: View {
                         }
                     },
                     onSendComment: {
-                        guard authManager.isAuthenticated else {
-                            authPromptMessage = "Чтобы комментировать, войдите в аккаунт"
+                        guard app.user.email != nil else {
+                            authPromptMessage = "Чтобы комментировать, привяжите email к аккаунту"
                             showAuthPrompt = true
                             return
                         }
@@ -233,8 +239,8 @@ struct FeedView: View {
                         commentText[post.id] = ""
                     },
                     onLike: {
-                        guard authManager.isAuthenticated else {
-                            authPromptMessage = "Чтобы лайкать посты, войдите в аккаунт"
+                        guard app.user.email != nil else {
+                            authPromptMessage = "Чтобы лайкать посты, привяжите email к аккаунту"
                             showAuthPrompt = true
                             return
                         }
@@ -281,10 +287,10 @@ struct FeedView: View {
             }
 
             PetCareDashedButton(title: "Добавить пост", icon: "plus") {
-                if authManager.isAuthenticated {
+                if app.user.email != nil {
                     showNewPost = true
                 } else {
-                    authPromptMessage = "Чтобы создавать посты, войдите в аккаунт — это бесплатно"
+                    authPromptMessage = "Чтобы создавать посты, привяжите email к аккаунту"
                     showAuthPrompt = true
                 }
             }

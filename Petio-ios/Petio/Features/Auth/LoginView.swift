@@ -49,7 +49,7 @@ struct LoginView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Email")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(PetCareTheme.muted)
+                            .foregroundStyle(PetCareTheme.muted)
                         TextField("Ваша почта", text: $email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
@@ -63,7 +63,7 @@ struct LoginView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Пароль")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(PetCareTheme.muted)
+                            .foregroundStyle(PetCareTheme.muted)
                         SecureField("••••••••", text: $password)
                             .textContentType(.password)
                             .padding(14)
@@ -72,10 +72,23 @@ struct LoginView: View {
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.border))
                     }
 
+                    HStack {
+                        Spacer()
+                        Button {
+                            viewModel.currentEmail = email.isEmpty ? nil : email
+                            viewModel.passwordRecoverySheet = .forgotPassword
+                        } label: {
+                            Text("Забыли пароль?")
+                                .font(.system(size: 14))
+                                .foregroundStyle(PetCareTheme.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if let error = viewModel.errorMessage {
                         Text(error)
                             .font(.system(size: 14))
-                            .foregroundColor(.red)
+                            .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                     }
 
@@ -94,9 +107,9 @@ struct LoginView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text("Нет аккаунта?")
-                            .foregroundColor(PetCareTheme.muted)
+                            .foregroundStyle(PetCareTheme.muted)
                         Text("Зарегистрироваться")
-                            .foregroundColor(PetCareTheme.primary)
+                            .foregroundStyle(PetCareTheme.primary)
                             .fontWeight(.medium)
                     }
                     .font(.system(size: 15))
@@ -108,6 +121,16 @@ struct LoginView: View {
         .background(PetCareTheme.background.ignoresSafeArea())
         .navigationBarHidden(true)
         .onAppear { viewModel.errorMessage = nil }
+        .sheet(item: $viewModel.passwordRecoverySheet) { sheet in
+            switch sheet {
+            case .forgotPassword:
+                ForgotPasswordView()
+                    .environmentObject(viewModel)
+            case .resetPassword:
+                ResetPasswordView()
+                    .environmentObject(viewModel)
+            }
+        }
     }
 }
 

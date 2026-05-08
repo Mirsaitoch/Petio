@@ -21,6 +21,7 @@ struct ProfileView: View {
     @State private var selectedTab: ProfileTab = .posts
     @State private var showAuthPrompt = false
     @State private var showAuthView = false
+    @State private var showEmailLinking = false
 
     private var myPosts: [Post] {
         app.posts.filter { $0.author == app.user.username }
@@ -67,6 +68,13 @@ struct ProfileView: View {
             }
             .fullScreenCover(isPresented: $showAuthView) {
                 AuthView()
+            }
+            .sheet(isPresented: $showEmailLinking) {
+                ProfileEmailLinkingView(authManager: authManager) {
+                    showEmailLinking = false
+                    // Reload profile to get updated email
+                    Task { await app.loadProfile() }
+                }
             }
             .sheet(isPresented: $showEditProfile) {
                 EditProfileSheet(user: app.user) { updated in
@@ -183,16 +191,14 @@ struct ProfileView: View {
                                 Task { await app.updateProfile(updated) }
                             }
                         ),
-                        placeholder: String(app.user.username.prefix(1)),
+                        placeholder: String((app.user.username.isEmpty ? "П" : String(app.user.username.prefix(1))).uppercased()),
                         size: 64,
                         isCircle: true
                     )
                     VStack(alignment: .leading, spacing: 4) {
-                        if !app.user.username.isEmpty {
-                            Text("@\(app.user.username)")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
+                        Text("@\(app.user.username.isEmpty ? "пользователь" : app.user.username)")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
                         if let email = app.user.email, !email.isEmpty {
                             Text(email)
                                 .font(.system(size: 11))
@@ -411,6 +417,12 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 settingsRow(icon: "bell", color: .blue, title: "Уведомления")
                 settingsRow(icon: "lock.shield", color: .green, title: "Конфиденциальность")
+                if authManager.isAuthenticated && (app.user.email == nil || app.user.email?.isEmpty == true) {
+                    Divider().padding(.leading, 60)
+                    settingsRow(icon: "envelope.badge", color: .purple, title: "Привязать email") {
+                        showEmailLinking = true
+                    }
+                }
                 settingsRow(icon: "questionmark.circle", color: .orange, title: "Помощь") {
                     if let url = URL(string: "https://forms.gle/CH5Z1QLiWYbmZeCh6") {
                         UIApplication.shared.open(url)

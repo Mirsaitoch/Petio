@@ -91,7 +91,7 @@ struct EmailLinkingPromptView: View {
     }
 
     private func skipButtonTapped() {
-        authViewModel.showEmailLinking = false
+        authViewModel.skipEmailLinking()
     }
 }
 

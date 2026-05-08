@@ -271,12 +271,6 @@ final class AppState: ObservableObject {
 
             var result = profile
 
-            // Подставляем email из сессии (бэкенд не включает email в UserProfile)
-            if let savedEmail = UserDefaults.standard.string(forKey: "petio_session_email") {
-                result.email = savedEmail
-                print("[PROFILE] Email подставлен из сессии: '\(savedEmail)'")
-            }
-
             let usernameKey = "petio_session_username"
             if result.username.trimmingCharacters(in: .whitespaces).isEmpty {
                 if let saved = UserDefaults.standard.string(forKey: usernameKey) {
@@ -302,9 +296,8 @@ final class AppState: ObservableObject {
 
             let usernameKey = "petio_session_username"
             let fallbackUsername = UserDefaults.standard.string(forKey: usernameKey) ?? ""
-            let fallbackEmail = UserDefaults.standard.string(forKey: "petio_session_email")
 
-            if !fallbackUsername.isEmpty || fallbackEmail != nil {
+            if !fallbackUsername.isEmpty {
                 let fallback = UserProfile(
                     name: user.name,
                     username: fallbackUsername,
@@ -312,12 +305,11 @@ final class AppState: ObservableObject {
                     bio: user.bio,
                     petsCount: pets.count,
                     postsCount: posts.count,
-                    joinDate: "",
-                    email: fallbackEmail
+                    joinDate: ""
                 )
                 user = fallback
                 LocalStorage.save(fallback, to: .profile)
-                print("[PROFILE] Fallback профиль из UserDefaults — username='\(fallbackUsername)', email='\(fallbackEmail ?? "nil")'")
+                print("[PROFILE] Fallback профиль из UserDefaults — username='\(fallbackUsername)'")
             }
         }
     }
@@ -341,7 +333,6 @@ final class AppState: ObservableObject {
 
         CacheManager().clearAll()
 
-        UserDefaults.standard.removeObject(forKey: "petio_session_email")
         UserDefaults.standard.removeObject(forKey: "petio_session_username")
     }
 

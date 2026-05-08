@@ -15,7 +15,7 @@ struct ChatView: View {
     @State private var inputText = ""
     @State private var isTyping = false
     @FocusState private var inputFocused: Bool
-    @State private var showAuthView = false
+    @State private var showEmailLinking = false
 
     private let quickQuestions = [
         "Как часто кормить щенка?",
@@ -25,7 +25,7 @@ struct ChatView: View {
     ]
 
     var body: some View {
-        if authManager.isAuthenticated {
+        if app.user.email != nil {
             VStack(spacing: 0) {
                 chatHeader
                 messagesList
@@ -33,37 +33,37 @@ struct ChatView: View {
             }
             .background(PetCareTheme.background)
         } else {
-            authPromptView
+            emailPromptView
         }
     }
 
-    private var authPromptView: some View {
+    private var emailPromptView: some View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "lock.fill")
+            Image(systemName: "envelope.badge")
                 .font(.system(size: 60))
-                .foregroundColor(PetCareTheme.primary)
+                .foregroundStyle(PetCareTheme.primary)
 
-            Text("AI-помощник требует аккаунта")
+            Text("Нужна привязка email")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundStyle(PetCareTheme.primary)
                 .multilineTextAlignment(.center)
 
-            Text("Создайте аккаунт или войдите, чтобы общаться с AI-помощником по уходу за питомцами")
+            Text("Привяжите email к аккаунту, чтобы общаться с AI-помощником по уходу за питомцами")
                 .font(.system(size: 16))
-                .foregroundColor(PetCareTheme.muted)
+                .foregroundStyle(PetCareTheme.muted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
             Spacer()
 
             Button {
-                showAuthView = true
+                showEmailLinking = true
             } label: {
-                Text("Создать аккаунт или войти")
+                Text("Привязать email")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(PetCareTheme.primary)
@@ -73,8 +73,14 @@ struct ChatView: View {
             .padding(.bottom, 32)
         }
         .background(PetCareTheme.background)
-        .fullScreenCover(isPresented: $showAuthView) {
-            AuthView()
+        .sheet(isPresented: $showEmailLinking) {
+            ProfileEmailLinkingView(
+                authManager: authManager,
+                onComplete: {
+                    showEmailLinking = false
+                    Task { await app.loadProfile() }
+                }
+            )
         }
     }
 

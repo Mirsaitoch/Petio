@@ -17,12 +17,11 @@ class CacheManagerTests: XCTestCase {
                 name: "Тор",
                 species: "собака",
                 breed: "хаски",
-                age: "3",
+                age: 3,
                 weight: 30.0,
                 photo: nil,
                 birthDate: "2023-01-01",
                 vaccinations: [],
-                treatments: [],
                 features: []
             )
         ]
@@ -64,7 +63,7 @@ class CacheManagerTests: XCTestCase {
     }
 
     func testClearAllRemovesAllData() {
-        let pets = [Pet(id: "1", name: "Тор", species: "собака", breed: "хаски", age: "3", weight: 30.0, photo: nil, birthDate: "2023-01-01", vaccinations: [], treatments: [], features: [])]
+        let pets = [Pet(id: "1", name: "Тор", species: "собака", breed: "хаски", age: 3, weight: 30.0, photo: nil, birthDate: "2023-01-01", vaccinations: [], features: [])]
         cache.savePets(pets)
 
         cache.clearAll()

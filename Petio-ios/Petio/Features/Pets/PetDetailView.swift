@@ -14,7 +14,6 @@ struct PetDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddVaccinationSheet = false
-    @State private var showAddTreatmentSheet = false
     @State private var offlineAlertMessage = ""
     @State private var showOfflineAlert = false
 
@@ -29,7 +28,6 @@ struct PetDetailView: View {
                         infoSection(pet: pet)
                         if !pet.features.isEmpty { featuresSection(pet: pet) }
                         vaccinationsSection(pet: pet)
-                        treatmentsSection(pet: pet)
                         healthLinkButton
                     }
                     .padding(.bottom, 32)
@@ -106,18 +104,6 @@ struct PetDetailView: View {
                     }
                     showAddVaccinationSheet = false
                 } onCancel: { showAddVaccinationSheet = false }
-            }
-        }
-        .sheet(isPresented: $showAddTreatmentSheet) {
-            if let p = pet {
-                AddTreatmentSheet { treatment in
-                    Task {
-                        var updated = p
-                        updated.treatments.append(treatment)
-                        await app.updatePet(updated)
-                    }
-                    showAddTreatmentSheet = false
-                } onCancel: { showAddTreatmentSheet = false }
             }
         }
         .alert("Удалить \(pet?.name ?? "")?", isPresented: $showDeleteAlert) {
@@ -269,7 +255,7 @@ struct PetDetailView: View {
 
     private func infoSection(pet: Pet) -> some View {
         HStack(spacing: 12) {
-            infoTile(icon: "calendar", value: pet.age, label: "Возраст", color: Color(hex: "#2196F3"))
+            infoTile(icon: "calendar", value: pet.ageDisplay, label: "Возраст", color: Color(hex: "#2196F3"))
             infoTile(icon: "scalemass", value: String(format: "%.1f кг", pet.weight), label: "Вес", color: Color(hex: "#FF9800"))
             infoTile(icon: "syringe", value: "\(pet.vaccinations.count)", label: "Прививки", color: PetCareTheme.primary)
         }
@@ -374,9 +360,9 @@ struct PetDetailView: View {
                     .foregroundColor(PetCareTheme.primary)
                 HStack(spacing: 8) {
                     Label(v.date, systemImage: "calendar")
-                    if let expiration = v.expirationDate {
+                    if let nextDate = v.nextDate {
                         Text("·")
-                        Label("до \(expiration)", systemImage: "clock")
+                        Label("до \(nextDate)", systemImage: "clock")
                     }
                 }
                 .font(.system(size: 11))
@@ -401,87 +387,6 @@ struct PetDetailView: View {
                 Task {
                     guard var p = app.pets.first(where: { $0.id == petId }) else { return }
                     p.vaccinations.removeAll { $0.id == v.id }
-                    await app.updatePet(p)
-                }
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 13))
-                    .foregroundColor(networkMonitor.isOnline ? .red.opacity(0.7) : PetCareTheme.muted)
-            }
-            .buttonStyle(.plain)
-            .disabled(!networkMonitor.isOnline)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(PetCareTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
-    }
-
-    // MARK: - Treatments
-
-    private func treatmentsSection(pet: Pet) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                sectionHeader(title: "Обработки", icon: "ant.fill", color: PetCareTheme.reminderDeworming)
-                Spacer()
-                Button {
-                    guard networkMonitor.isOnline else {
-                        offlineAlertMessage = "Добавление обработки недоступно без интернета"
-                        showOfflineAlert = true
-                        return
-                    }
-                    showAddTreatmentSheet = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(networkMonitor.isOnline ? PetCareTheme.primary : PetCareTheme.muted)
-                }
-                .disabled(!networkMonitor.isOnline)
-            }
-
-            if pet.treatments.isEmpty {
-                emptyCard(text: "Обработки не добавлены")
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(pet.treatments) { t in
-                        treatmentRow(t: t, pet: pet)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-    }
-
-    private func treatmentRow(t: Treatment, pet: Pet) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "cross.vial")
-                .font(.system(size: 14))
-                .foregroundColor(PetCareTheme.reminderDeworming)
-                .frame(width: 34, height: 34)
-                .background(PetCareTheme.reminderDeworming.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(t.name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(PetCareTheme.primary)
-                Label(t.date, systemImage: "calendar")
-                    .font(.system(size: 11))
-                    .foregroundColor(PetCareTheme.muted)
-            }
-            Spacer()
-
-            Button {
-                guard networkMonitor.isOnline else {
-                    offlineAlertMessage = "Удаление обработки недоступно без интернета"
-                    showOfflineAlert = true
-                    return
-                }
-                Task {
-                    guard var p = app.pets.first(where: { $0.id == petId }) else { return }
-                    p.treatments.removeAll { $0.id == t.id }
                     await app.updatePet(p)
                 }
             } label: {
@@ -634,7 +539,7 @@ struct EditPetSheet: View {
         }
         _name = State(initialValue: pet.name)
         _breed = State(initialValue: pet.breed == "Не указана" ? "" : pet.breed)
-        _birthDate = State(initialValue: Self.isoFormatter.date(from: pet.birthDate) ?? Date())
+        _birthDate = State(initialValue: DateHelper.parse(pet.birthDate) ?? Self.isoFormatter.date(from: pet.birthDate) ?? Date())
         _weight = State(initialValue: pet.weight > 0 ? String(format: "%.1f", pet.weight) : "")
         _featuresText = State(initialValue: pet.features.joined(separator: ", "))
         _photoPath = State(initialValue: pet.photo)
@@ -823,7 +728,10 @@ struct EditPetSheet: View {
         p.species = finalSpecies
         p.breed = breed.isEmpty ? "Не указана" : breed
         p.birthDate = birthString
-        p.age = PetAgeCalculator.computedAge(from: birthString)
+        let cal = Calendar.current
+        if let bd = Self.isoFormatter.date(from: birthString) {
+            p.age = cal.dateComponents([.year], from: bd, to: Date()).year ?? 0
+        }
         p.weight = max(0, Double(normalizedWeight) ?? 0)
         p.photo = photoPath
         p.features = featuresText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -839,8 +747,8 @@ struct AddVaccinationSheet: View {
 
     @State private var name = ""
     @State private var date = Date()
-    @State private var hasExpirationDate = false
-    @State private var expirationDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    @State private var hasNextDate = false
+    @State private var nextDate = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
     @FocusState private var nameFocused: Bool
 
     private static let isoFormatter: DateFormatter = {
@@ -869,7 +777,7 @@ struct AddVaccinationSheet: View {
                         id: UUID().uuidString,
                         name: name.trimmingCharacters(in: .whitespaces),
                         date: Self.isoFormatter.string(from: date),
-                        expirationDate: hasExpirationDate ? Self.isoFormatter.string(from: expirationDate) : nil
+                        nextDate: hasNextDate ? Self.isoFormatter.string(from: nextDate) : nil
                     )
                     onSave(v)
                 } label: {
@@ -904,15 +812,15 @@ struct AddVaccinationSheet: View {
 
                 datePicker(label: "Дата прививки", icon: "calendar", color: Color(hex: "#2196F3"), selection: $date)
 
-                Toggle(isOn: $hasExpirationDate.animation()) {
-                    Label("Срок действия", systemImage: "clock")
+                Toggle(isOn: $hasNextDate.animation()) {
+                    Label("Следующая прививка", systemImage: "clock")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(PetCareTheme.primary)
                 }
                 .tint(PetCareTheme.primary)
 
-                if hasExpirationDate {
-                    datePicker(label: "Действительна до", icon: "clock", color: Color(hex: "#4CAF50"), selection: $expirationDate)
+                if hasNextDate {
+                    datePicker(label: "Следующая дата", icon: "clock", color: Color(hex: "#4CAF50"), selection: $nextDate)
                 }
             }
             .padding(.horizontal, 20)
@@ -952,104 +860,3 @@ struct AddVaccinationSheet: View {
     }
 }
 
-// MARK: - Add treatment sheet
-
-struct AddTreatmentSheet: View {
-    let onSave: (Treatment) -> Void
-    let onCancel: () -> Void
-
-    @State private var name = ""
-    @State private var date = Date()
-    @FocusState private var nameFocused: Bool
-
-    private static let isoFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "ru_RU")
-        f.timeZone = TimeZone(secondsFromGMT: 0)
-        return f
-    }()
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color(.systemGray4))
-                .frame(width: 36, height: 4)
-                .padding(.top, 10)
-                .padding(.bottom, 16)
-
-            HStack {
-                Text("Новая обработка")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(PetCareTheme.primary)
-                Spacer()
-                Button {
-                    onSave(Treatment(
-                        id: UUID().uuidString,
-                        name: name.trimmingCharacters(in: .whitespaces),
-                        date: Self.isoFormatter.string(from: date)
-                    ))
-                } label: {
-                    Text("Добавить")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(name.trimmingCharacters(in: .whitespaces).isEmpty ? PetCareTheme.muted : PetCareTheme.primary)
-                }
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-
-            VStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    label("Название")
-                    HStack(spacing: 10) {
-                        Image(systemName: "cross.vial")
-                            .font(.system(size: 13))
-                            .foregroundColor(PetCareTheme.reminderDeworming)
-                            .frame(width: 28, height: 28)
-                            .background(PetCareTheme.reminderDeworming.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        TextField("Напр.: Антипаразитарная обработка", text: $name)
-                            .focused($nameFocused)
-                            .font(.system(size: 14))
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 11)
-                    .background(PetCareTheme.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.border, lineWidth: 1))
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    label("Дата")
-                    HStack(spacing: 10) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 13))
-                            .foregroundColor(Color(hex: "#2196F3"))
-                            .frame(width: 28, height: 28)
-                            .background(Color(hex: "#2196F3").opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        DatePicker("", selection: $date, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .labelsHidden()
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 11)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(PetCareTheme.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PetCareTheme.border, lineWidth: 1))
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 32)
-        }
-        .background(PetCareTheme.background)
-        .presentationDetents([.height(310)])
-        .presentationCornerRadius(24)
-        .presentationDragIndicator(.hidden)
-        .onAppear { nameFocused = true }
-    }
-
-    private func label(_ text: String) -> some View {
-        Text(text).font(.system(size: 12, weight: .medium)).foregroundColor(PetCareTheme.muted)
-    }
-}

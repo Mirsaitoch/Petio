@@ -66,7 +66,7 @@ struct PetListRow: View {
                     .font(.system(size: 14))
                     .foregroundColor(PetCareTheme.muted)
                 HStack(spacing: 12) {
-                    Label(pet.age, systemImage: "calendar")
+                    Label(pet.ageDisplay, systemImage: "calendar")
                     Label("\(pet.weight, specifier: "%.1f") кг", systemImage: "scalemass")
                     Label("\(pet.vaccinations.count)", systemImage: "shield")
                 }

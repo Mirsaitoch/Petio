@@ -55,9 +55,32 @@ final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
     func likePost(id: String, liked: Bool) async throws { }
     func addComment(postId: String, _ comment: Comment) async throws { }
 
-    func sendChatMessage(_ text: String) async throws -> String {
+    // MARK: - Chat (мок мульти-чат)
+
+    private var mockChatId = "mock-chat-1"
+
+    func createChat(title: String) async throws -> Chat {
+        Chat(id: mockChatId, title: title.isEmpty ? "Новый чат" : title, createdAt: ISO8601DateFormatter().string(from: Date()), updatedAt: ISO8601DateFormatter().string(from: Date()))
+    }
+
+    func listChats(limit: Int, offset: Int) async throws -> [Chat] {
+        [try await createChat(title: "Мок-чат")]
+    }
+
+    func getChat(id: String) async throws -> Chat {
+        try await createChat(title: "Мок-чат")
+    }
+
+    func deleteChat(id: String) async throws { }
+
+    func getChatMessages(chatId: String, limit: Int, offset: Int) async throws -> [ChatMessage] {
+        []
+    }
+
+    func sendChatMessage(chatId: String, text: String) async throws -> ChatMessage {
         try await Task.sleep(nanoseconds: 800_000_000)
-        return MockAIService.response(for: text)
+        let reply = MockAIService.response(for: text)
+        return ChatMessage(id: UUID().uuidString, chatId: chatId, role: "assistant", content: reply)
     }
 
     func fetchProfile() async throws -> UserProfile { MockData.user }

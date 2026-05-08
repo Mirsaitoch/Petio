@@ -3,6 +3,7 @@
 //  Petio
 //
 //  Чат с AI-помощником: быстрые вопросы, ввод, ответы.
+//  Работает через мульти-чат API (/v1/chats/{id}/messages).
 //
 
 import SwiftUI
@@ -233,8 +234,8 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack(alignment: .top) {
-            if message.role == .user { Spacer(minLength: 60) }
-            if message.role == .assistant {
+            if message.isUser { Spacer(minLength: 60) }
+            if message.isAssistant {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
@@ -258,7 +259,7 @@ struct MessageBubble: View {
                 )
                 Spacer(minLength: 60)
             }
-            if message.role == .user {
+            if message.isUser {
                 Text(message.content)
                     .font(.system(size: 14))
                     .foregroundColor(.white)

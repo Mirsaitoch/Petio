@@ -16,7 +16,7 @@ class OfflineIntegrationTests: XCTestCase {
     func testOfflineModeLoadsFromCache() async {
         // Подготовка: сохранить данные в кеш
         let pets = [
-            Pet(id: "1", name: "Тор", species: "собака", breed: "хаски", age: "3", weight: 30.0, photo: nil, birthDate: "2023-01-01", vaccinations: [], treatments: [], features: [])
+            Pet(id: "1", name: "Тор", species: "собака", breed: "хаски", age: 3, weight: 30.0, photo: nil, birthDate: "2023-01-01", vaccinations: [], features: [])
         ]
         cache.savePets(pets)
 

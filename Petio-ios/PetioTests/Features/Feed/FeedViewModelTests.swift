@@ -230,12 +230,30 @@ final class MockAPIClient: APIClientProtocol {
 
     func addComment(postId: String, _ comment: Petio.Comment) async throws {}
 
-    func sendChatMessage(_ text: String) async throws -> String {
-        ""
+    func createChat(title: String) async throws -> Chat {
+        Chat(id: "", title: title, createdAt: "", updatedAt: "")
+    }
+
+    func listChats(limit: Int, offset: Int) async throws -> [Chat] {
+        []
+    }
+
+    func getChat(id: String) async throws -> Chat {
+        Chat(id: id, title: "", createdAt: "", updatedAt: "")
+    }
+
+    func deleteChat(id: String) async throws {}
+
+    func getChatMessages(chatId: String, limit: Int, offset: Int) async throws -> [ChatMessage] {
+        []
+    }
+
+    func sendChatMessage(chatId: String, text: String) async throws -> ChatMessage {
+        ChatMessage(id: "", chatId: chatId, role: "assistant", content: "", createdAt: "")
     }
 
     func fetchProfile() async throws -> UserProfile {
-        UserProfile(username: "", email: nil, avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
+        UserProfile(name: "", username: "", avatar: nil, bio: "", petsCount: 0, postsCount: 0, joinDate: "")
     }
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {

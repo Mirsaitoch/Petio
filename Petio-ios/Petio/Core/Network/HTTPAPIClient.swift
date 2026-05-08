@@ -3,7 +3,7 @@
 //  Petio
 //
 //  Real HTTP implementation of APIClientProtocol using URLSession.
-//  Attaches JWT token to every request. Auto-logout on 401.
+//  Attaches JWT token to every request. Auto-refresh on 401.
 //
 
 import Foundation
@@ -53,9 +53,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         }
         logResponse(http, data)
         if http.statusCode == 401 {
-            // Attempt to refresh token
             if let _ = try? await refreshAccessToken() {
-                // Refresh succeeded, retry the request with new token
                 var retryRequest = request
                 if let newToken = authManager.getToken() {
                     retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
@@ -73,7 +71,6 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
                     throw APIError.decoding(error)
                 }
             } else {
-                // Refresh failed, delete token and throw
                 authManager.deleteToken()
                 throw APIError.server(401)
             }
@@ -89,14 +86,13 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     private func performVoid(_ request: URLRequest) async throws {
+        logRequest(request)
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.network(URLError(.badServerResponse))
         }
         if http.statusCode == 401 {
-            // Attempt to refresh token
             if let _ = try? await refreshAccessToken() {
-                // Refresh succeeded, retry the request with new token
                 var retryRequest = request
                 if let newToken = authManager.getToken() {
                     retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
@@ -110,7 +106,6 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
                 }
                 return
             } else {
-                // Refresh failed, delete token and throw
                 authManager.deleteToken()
                 throw APIError.server(401)
             }
@@ -136,7 +131,6 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
             let refreshToken: String
         }
 
-        // Don't include expired token when refreshing
         let request = try makeRequest(
             path: "/auth/refresh",
             method: "POST",
@@ -203,7 +197,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func fetchPets() async throws -> [Pet] {
         do {
-            let pets: [Pet] = try await perform(try makeRequest(path: "/pets"))
+            let pets: [Pet] = try await perform(try makeRequest(path: Endpoints.pets()))
             cacheManager.savePets(pets)
             return pets
         } catch let error {
@@ -216,19 +210,19 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func fetchPet(id: String) async throws -> Pet? {
-        try await perform(try makeRequest(path: "/pets/\(id)"))
+        try await perform(try makeRequest(path: Endpoints.pet(id: id)))
     }
 
     func addPet(_ pet: Pet) async throws -> Pet {
-        try await perform(try makeRequest(path: "/pets", method: "POST", body: encode(pet)))
+        try await perform(try makeRequest(path: Endpoints.pets(), method: "POST", body: encode(pet)))
     }
 
     func updatePet(_ pet: Pet) async throws -> Pet {
-        try await perform(try makeRequest(path: "/pets/\(pet.id)", method: "PUT", body: encode(pet)))
+        try await perform(try makeRequest(path: Endpoints.pet(id: pet.id), method: "PUT", body: encode(pet)))
     }
 
     func deletePet(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/pets/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.pet(id: id), method: "DELETE"))
     }
 
     // MARK: - Reminders
@@ -237,7 +231,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         do {
             var qi: [URLQueryItem] = []
             if let id = petId { qi = [URLQueryItem(name: "petId", value: id)] }
-            let reminders: [Reminder] = try await perform(try makeRequest(path: "/reminders", queryItems: qi))
+            let reminders: [Reminder] = try await perform(try makeRequest(path: Endpoints.reminders(), queryItems: qi))
             cacheManager.saveReminders(reminders)
             return reminders
         } catch let error {
@@ -250,32 +244,32 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func addReminder(_ reminder: Reminder) async throws -> Reminder {
-        try await perform(try makeRequest(path: "/reminders", method: "POST", body: encode(reminder)))
+        try await perform(try makeRequest(path: Endpoints.reminders(), method: "POST", body: encode(reminder)))
     }
 
     func updateReminder(_ reminder: Reminder) async throws -> Reminder {
-        try await perform(try makeRequest(path: "/reminders/\(reminder.id)", method: "PUT", body: encode(reminder)))
+        try await perform(try makeRequest(path: Endpoints.reminder(id: reminder.id), method: "PUT", body: encode(reminder)))
     }
 
     func deleteReminder(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/reminders/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.reminder(id: id), method: "DELETE"))
     }
 
     // MARK: - Weight
 
     func fetchWeightHistory(petId: String) async throws -> [WeightRecord] {
-        try await perform(try makeRequest(path: "/pets/\(petId)/weight"))
+        try await perform(try makeRequest(path: Endpoints.weightRecords(petId: petId)))
     }
 
     func addWeightRecord(petId: String, _ record: WeightRecord) async throws {
-        try await performVoid(try makeRequest(path: "/pets/\(petId)/weight", method: "POST", body: encode(record)))
+        try await performVoid(try makeRequest(path: Endpoints.weightRecords(petId: petId), method: "POST", body: encode(record)))
     }
 
     // MARK: - Diary
 
     func fetchDiary(petId: String) async throws -> [HealthDiaryEntry] {
         do {
-            let entries: [HealthDiaryEntry] = try await perform(try makeRequest(path: "/pets/\(petId)/diary"))
+            let entries: [HealthDiaryEntry] = try await perform(try makeRequest(path: Endpoints.diaryEntries(petId: petId)))
             cacheManager.saveDiaryEntries(entries)
             return entries
         } catch let error {
@@ -288,21 +282,21 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     }
 
     func addDiaryEntry(_ entry: HealthDiaryEntry) async throws -> HealthDiaryEntry {
-        try await perform(try makeRequest(path: "/pets/\(entry.petId)/diary", method: "POST", body: encode(entry)))
+        try await perform(try makeRequest(path: Endpoints.diaryEntries(petId: entry.petId), method: "POST", body: encode(entry)))
     }
 
     func updateDiaryEntry(_ entry: HealthDiaryEntry) async throws {
-        try await performVoid(try makeRequest(path: "/diary/\(entry.id)", method: "PUT", body: encode(entry)))
+        try await performVoid(try makeRequest(path: Endpoints.diaryEntry(id: entry.id), method: "PUT", body: encode(entry)))
     }
 
     func deleteDiaryEntry(id: String) async throws {
-        try await performVoid(try makeRequest(path: "/diary/\(id)", method: "DELETE"))
+        try await performVoid(try makeRequest(path: Endpoints.diaryEntry(id: id), method: "DELETE"))
     }
 
     // MARK: - Articles
 
     func fetchArticles() async throws -> [Article] {
-        try await perform(try makeRequest(path: "/articles"))
+        try await perform(try makeRequest(path: Endpoints.articles()))
     }
 
     // MARK: - Posts
@@ -322,7 +316,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
         print("[POSTS] fetchPosts запрос: club='\(club ?? "nil")', limit=\(limit), afterID=\(afterID ?? "nil"), beforeID=\(beforeID ?? "nil")")
 
         do {
-            let response: PostsResponse = try await perform(try makeRequest(path: "/posts", queryItems: qi))
+            let response: PostsResponse = try await perform(try makeRequest(path: Endpoints.posts(), queryItems: qi))
             print("[POSTS] fetchPosts успех: получено \(response.posts.count) постов, hasMore=\(response.hasMore), hasNew=\(response.hasNew)")
             return response
         } catch {
@@ -334,7 +328,7 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func addPost(_ post: Post) async throws -> Post {
         print("[POSTS] addPost запрос: author='\(post.author)', content='\(post.content.prefix(50))', club='\(post.club)', image=\(post.image ?? "nil")")
         do {
-            let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(post)))
+            let result: Post = try await perform(try makeRequest(path: Endpoints.posts(), method: "POST", body: encode(post)))
             print("[POSTS] addPost успех: id=\(result.id), image=\(result.image ?? "nil")")
             return result
         } catch {
@@ -345,20 +339,18 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
 
     func addPostWithImage(_ post: Post, imageData: Data) async throws -> Post {
         print("[POSTS] addPostWithImage запрос: author='\(post.author)', content='\(post.content.prefix(50))', imageSize=\(imageData.count) bytes")
-        // Step 1: upload image, get URL from /upload/post-image
         let imageURL = try await uploadPostImage(imageData: imageData)
         print("[POSTS] addPostWithImage: imageURL='\(imageURL)'")
-        // Step 2: create post via JSON with image URL
         var postWithImage = post
         postWithImage.image = imageURL
-        let result: Post = try await perform(try makeRequest(path: "/posts", method: "POST", body: encode(postWithImage)))
+        let result: Post = try await perform(try makeRequest(path: Endpoints.posts(), method: "POST", body: encode(postWithImage)))
         print("[POSTS] addPostWithImage успех: id=\(result.id), image=\(result.image ?? "nil")")
         return result
     }
 
     private func uploadPostImage(imageData: Data) async throws -> String {
         let boundary = UUID().uuidString
-        guard let url = URLComponents(string: baseURL + "/upload/post-image")?.url else {
+        guard let url = URLComponents(string: baseURL + Endpoints.uploadPostImage())?.url else {
             throw APIError.invalidURL
         }
         var req = URLRequest(url: url)
@@ -389,35 +381,62 @@ final class HTTPAPIClient: APIClientProtocol, @unchecked Sendable {
     func likePost(id: String, liked: Bool) async throws {
         struct LikeBody: Encodable { let liked: Bool }
         try await performVoid(try makeRequest(
-            path: "/posts/\(id)/like", method: "POST", body: encode(LikeBody(liked: liked))
+            path: Endpoints.likePost(id: id), method: "POST", body: encode(LikeBody(liked: liked))
         ))
     }
 
     func addComment(postId: String, _ comment: Comment) async throws {
         try await performVoid(try makeRequest(
-            path: "/posts/\(postId)/comments", method: "POST", body: encode(comment)
+            path: Endpoints.comments(postId: postId), method: "POST", body: encode(comment)
         ))
     }
 
-    // MARK: - Chat
+    // MARK: - Chat (мульти-чат API)
 
-    func sendChatMessage(_ text: String) async throws -> String {
-        struct SendBody: Encodable { let text: String }
-        struct ChatResponse: Decodable { let reply: String }
-        let resp: ChatResponse = try await perform(try makeRequest(
-            path: "/chat/send", method: "POST", body: encode(SendBody(text: text))
+    func createChat(title: String = "") async throws -> Chat {
+        struct CreateBody: Encodable { let title: String }
+        return try await perform(try makeRequest(
+            path: Endpoints.chats(), method: "POST", body: encode(CreateBody(title: title))
         ))
-        return resp.reply
+    }
+
+    func listChats(limit: Int = 20, offset: Int = 0) async throws -> [Chat] {
+        var qi: [URLQueryItem] = []
+        if limit != 20 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if offset != 0 { qi.append(URLQueryItem(name: "offset", value: String(offset))) }
+        return try await perform(try makeRequest(path: Endpoints.chats(), queryItems: qi))
+    }
+
+    func getChat(id: String) async throws -> Chat {
+        try await perform(try makeRequest(path: Endpoints.chat(id: id)))
+    }
+
+    func deleteChat(id: String) async throws {
+        try await performVoid(try makeRequest(path: Endpoints.chat(id: id), method: "DELETE"))
+    }
+
+    func getChatMessages(chatId: String, limit: Int = 50, offset: Int = 0) async throws -> [ChatMessage] {
+        var qi: [URLQueryItem] = []
+        if limit != 50 { qi.append(URLQueryItem(name: "limit", value: String(limit))) }
+        if offset != 0 { qi.append(URLQueryItem(name: "offset", value: String(offset))) }
+        return try await perform(try makeRequest(path: Endpoints.chatMessages(chatId: chatId), queryItems: qi))
+    }
+
+    func sendChatMessage(chatId: String, text: String) async throws -> ChatMessage {
+        struct SendBody: Encodable { let text: String }
+        return try await perform(try makeRequest(
+            path: Endpoints.chatMessages(chatId: chatId), method: "POST", body: encode(SendBody(text: text))
+        ))
     }
 
     // MARK: - Profile
 
     func fetchProfile() async throws -> UserProfile {
-        try await perform(try makeRequest(path: "/profile"))
+        try await perform(try makeRequest(path: Endpoints.profile()))
     }
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
-        try await perform(try makeRequest(path: "/profile", method: "PUT", body: encode(profile)))
+        try await perform(try makeRequest(path: Endpoints.profile(), method: "PUT", body: encode(profile)))
     }
 
     private func logRequest(_ request: URLRequest) {

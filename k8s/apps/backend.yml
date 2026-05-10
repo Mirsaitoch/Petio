@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: cr.yandex/crpa6boii06a7bgd9u5u/petio-backend:v1
+          image: cr.yandex/crpa6boii06a7bgd9u5u/petio-backend:v3
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

@@ -6,7 +6,6 @@
         "contact": {},
         "version": "1.0"
     },
-    "host": "localhost:8080",
     "basePath": "/",
     "paths": {
         "/health": {
@@ -2765,6 +2764,9 @@
                     "type": "string"
                 },
                 "bio": {
+                    "type": "string"
+                },
+                "email": {
                     "type": "string"
                 },
                 "joinDate": {

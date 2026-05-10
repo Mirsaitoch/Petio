@@ -62,6 +62,7 @@ dist/
 .env.*.local
 *.pem
 *.key
+k8s/base/secrets.yml
 
 # Claude Code
 .claude/

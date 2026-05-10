@@ -92,3 +92,38 @@ jobs:
       - name: Build server
         working-directory: backend
         run: go build ./cmd/server
+
+  deploy:
+    name: Deploy to K8s
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Yandex Container Registry
+        run: echo '${{ secrets.YC_SA_KEY }}' | docker login --username json_key --password-stdin cr.yandex
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE=cr.yandex/${{ secrets.YC_REGISTRY_ID }}/petio-backend:${{ github.sha }}
+          docker build -t $IMAGE ./backend
+          docker push $IMAGE
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo '${{ secrets.KUBE_CONFIG }}' | base64 -d > $HOME/.kube/config
+
+      - name: Deploy
+        run: |
+          IMAGE=cr.yandex/${{ secrets.YC_REGISTRY_ID }}/petio-backend:${{ github.sha }}
+          kubectl -n petio set image deployment/backend backend=$IMAGE
+          kubectl -n petio rollout status deployment/backend --timeout=120s

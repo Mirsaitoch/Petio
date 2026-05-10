@@ -105,10 +105,11 @@ services:
     build:
       context: ./triton
       dockerfile: Dockerfile
-    ports:
-      - "8010:8000"
-      - "8011:8001"
-      - "8012:8002"
+    # порты доступны только внутри docker network (triton → moderation_api)
+    expose:
+      - "8000"
+      - "8001"
+      - "8002"
     env_file:
       - ./triton/.env
     volumes:
@@ -119,7 +120,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 360s
-
 
   moderation_api:
     build:

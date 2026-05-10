@@ -1,7 +1,7 @@
 // @title       Petio API
 // @version     1.0
 // @description API приложения для ухода за домашними животными
-// @Host       localhost:8080
+// @Host
 // @BasePath   /
 // @securityDefinitions.apikey BearerAuth
 // @in         header

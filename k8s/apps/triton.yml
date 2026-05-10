@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: triton-models-pvc
+  namespace: petio
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton
+  namespace: petio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triton
+  template:
+    metadata:
+      labels:
+        app: triton
+    spec:
+      containers:
+        - name: triton
+          image: cr.yandex/crpa6boii06a7bgd9u5u/petio-triton:v3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8001
+              name: grpc
+            - containerPort: 8002
+              name: metrics
+          envFrom:
+            - secretRef:
+                name: triton-secrets        # S3 ключи для скачивания моделей
+                optional: true
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "3"
+              memory: 8Gi
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: triton-models-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton
+  namespace: petio
+spec:
+  selector:
+    app: triton
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: grpc
+      port: 8001
+      targetPort: 8001

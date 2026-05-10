@@ -42,6 +42,11 @@ app = FastAPI(title="Content Moderation API", lifespan=lifespan)
 router = APIRouter()
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 # --- Text moderation ---
 class TextRequest(BaseModel):
     text: str

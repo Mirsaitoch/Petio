@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moderation-api
+  namespace: petio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moderation-api
+  template:
+    metadata:
+      labels:
+        app: moderation-api
+    spec:
+      containers:
+        - name: moderation-api
+          image: cr.yandex/crpa6boii06a7bgd9u5u/petio-moderation:v2
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: TRITON_URL
+              value: "triton.petio.svc:8001"
+            - name: TRITON_HTTP_URL
+              value: "http://triton.petio.svc:8000"
+            - name: TOKENIZERS_PATH
+              value: "/app/tokenizers"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moderation-api
+  namespace: petio
+spec:
+  selector:
+    app: moderation-api
+  ports:
+    - port: 8000
+      targetPort: 8000

@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: petio
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0      # zero-downtime: сначала поднимаем новый, потом убиваем старый
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: cr.yandex/crpa6boii06a7bgd9u5u/petio-backend:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: HTTP_ADDR
+              value: ":8080"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: JWT_SECRET
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: S3_BUCKET
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: S3_REGION
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: S3_ENDPOINT
+            - name: S3_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: S3_BASE_URL
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: YANDEX_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: YANDEX_AI_API_KEY
+            - name: YANDEX_AI_FOLDER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: YANDEX_AI_FOLDER_ID
+            - name: YANDEX_AI_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: YANDEX_AI_BASE_URL
+            - name: MODERATION_URL
+              value: "http://moderation-api.petio.svc:8000"
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: SMTP_PORT
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: SMTP_USERNAME
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: SMTP_PASSWORD
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: petio-secrets
+                  key: SMTP_FROM
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: petio
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8080
+      targetPort: 8080

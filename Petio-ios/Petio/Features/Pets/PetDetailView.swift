@@ -5,6 +5,7 @@
 
 import SwiftUI
 import PhotosUI
+import Charts
 
 struct PetDetailView: View {
     let petId: String
@@ -14,6 +15,11 @@ struct PetDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showAddVaccinationSheet = false
+    @State private var showAddReminder = false
+    @State private var showAddDiary = false
+    @State private var showAddWeight = false
+    @State private var editingDiaryEntry: HealthDiaryEntry? = nil
+    @State private var editingReminder: Reminder? = nil
     @State private var offlineAlertMessage = ""
     @State private var showOfflineAlert = false
 
@@ -25,10 +31,21 @@ struct PetDetailView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         heroSection(pet: pet)
-                        infoSection(pet: pet)
                         if !pet.features.isEmpty { featuresSection(pet: pet) }
+                        PetRemindersCompactSection(
+                            petId: petId,
+                            onAddReminder: { showAddReminder = true }
+                        )
+                        PetWeightCompactSection(
+                            petId: petId,
+                            onAddWeight: { showAddWeight = true }
+                        )
                         vaccinationsSection(pet: pet)
-                        healthLinkButton
+                        PetDiaryCompactSection(
+                            petId: petId,
+                            onAddDiary: { showAddDiary = true },
+                            onEditEntry: { editingDiaryEntry = $0 }
+                        )
                     }
                     .padding(.bottom, 32)
                 }
@@ -47,41 +64,26 @@ struct PetDetailView: View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 4) {
-                    Button {
-                        guard networkMonitor.isOnline else {
-                            offlineAlertMessage = "Редактирование недоступно без интернета"
-                            showOfflineAlert = true
-                            return
-                        }
-                        showEditSheet = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 15))
-                            .foregroundColor(networkMonitor.isOnline ? PetCareTheme.primary : PetCareTheme.muted)
-                            .frame(width: 32, height: 32)
-                            .background(PetCareTheme.primary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                Button("Редактировать", systemImage: "pencil") {
+                    guard networkMonitor.isOnline else {
+                        offlineAlertMessage = "Редактирование недоступно без интернета"
+                        showOfflineAlert = true
+                        return
                     }
-                    .disabled(!networkMonitor.isOnline)
-
-                    Button(role: .destructive) {
-                        guard networkMonitor.isOnline else {
-                            offlineAlertMessage = "Удаление недоступно без интернета"
-                            showOfflineAlert = true
-                            return
-                        }
-                        showDeleteAlert = true
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 15))
-                            .foregroundColor(networkMonitor.isOnline ? .red : PetCareTheme.muted)
-                            .frame(width: 32, height: 32)
-                            .background(Color.red.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .disabled(!networkMonitor.isOnline)
+                    showEditSheet = true
                 }
+                .disabled(!networkMonitor.isOnline)
+            }
+            ToolbarItem(placement: .secondaryAction) {
+                Button("Удалить", systemImage: "trash", role: .destructive) {
+                    guard networkMonitor.isOnline else {
+                        offlineAlertMessage = "Удаление недоступно без интернета"
+                        showOfflineAlert = true
+                        return
+                    }
+                    showDeleteAlert = true
+                }
+                .disabled(!networkMonitor.isOnline)
             }
         }
         .navigationTitle("")
@@ -106,6 +108,48 @@ struct PetDetailView: View {
                 } onCancel: { showAddVaccinationSheet = false }
             }
         }
+        .navigationDestination(for: AppRoute.self) { route in
+            switch route {
+            case .petReminders(let id):
+                PetRemindersView(petId: id)
+            case .petWeight(let id):
+                PetWeightView(petId: id)
+            case .petDiary(let id):
+                PetDiaryView(petId: id)
+            default:
+                EmptyView()
+            }
+        }
+        .sheet(isPresented: $showAddReminder) {
+            AddReminderSheet(selectedPetId: petId, pets: app.pets) { r in
+                Task { await app.addReminder(r) }
+                showAddReminder = false
+            } onCancel: { showAddReminder = false }
+        }
+        .sheet(isPresented: $showAddDiary) {
+            AddDiarySheet(petId: petId) { e in
+                Task { await app.addDiaryEntry(e) }
+                showAddDiary = false
+            } onCancel: { showAddDiary = false }
+        }
+        .sheet(isPresented: $showAddWeight) {
+            AddWeightSheet(petId: petId) { r in
+                Task { await app.addWeightRecord(petId: petId, r) }
+                showAddWeight = false
+            } onCancel: { showAddWeight = false }
+        }
+        .sheet(item: $editingDiaryEntry) { entry in
+            AddDiarySheet(petId: entry.petId, existingEntry: entry) { updated in
+                Task { await app.updateDiaryEntry(updated) }
+                editingDiaryEntry = nil
+            } onCancel: { editingDiaryEntry = nil }
+        }
+        .sheet(item: $editingReminder) { reminder in
+            AddReminderSheet(selectedPetId: reminder.petId, pets: app.pets, existingReminder: reminder) { updated in
+                Task { await app.updateReminder(updated) }
+                editingReminder = nil
+            } onCancel: { editingReminder = nil }
+        }
         .alert("Удалить \(pet?.name ?? "")?", isPresented: $showDeleteAlert) {
             Button("Отмена", role: .cancel) { }
             Button("Удалить", role: .destructive) {
@@ -119,172 +163,86 @@ struct PetDetailView: View {
 
     // MARK: - Hero
 
-    @ViewBuilder
     private func heroSection(pet: Pet) -> some View {
-        if let urlString = pet.photo {
-            photoHero(urlString: urlString, pet: pet)
-        } else {
-            gradientHero(pet: pet)
+        VStack(spacing: 16) {
+            petAvatar(pet: pet)
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(speciesImageName(pet.species))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                    Text(pet.name)
+                        .font(.title2)
+                        .bold()
+                        .foregroundStyle(PetCareTheme.primary)
+                }
+                Text("\(pet.breed) · \(pet.ageDisplay)")
+                    .font(.subheadline)
+                    .foregroundStyle(PetCareTheme.muted)
+            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .padding(.bottom, 20)
     }
 
     @ViewBuilder
-    private func photoHero(urlString: String, pet: Pet) -> some View {
-        let imageView = resolvedImage(urlString: urlString)
-        if let imageView {
-            ZStack(alignment: .bottomLeading) {
-                imageView
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, minHeight: 280, maxHeight: 280)
-                    .clipped()
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.75)],
-                    startPoint: .center, endPoint: .bottom
-                )
-                .frame(maxWidth: .infinity, maxHeight: 160)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    speciesBadge(pet: pet)
-                    Text(pet.name)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(pet.breed)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.85))
+    private func petAvatar(pet: Pet) -> some View {
+        if let urlString = pet.photo, let image = resolvedLocalImage(urlString: urlString) {
+            image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 120, height: 120)
+                .clipShape(.circle)
+                .overlay(Circle().stroke(PetCareTheme.border, lineWidth: 2))
+                .shadow(color: PetCareTheme.primary.opacity(0.15), radius: 12, y: 4)
+        } else if let urlString = pet.photo,
+                  let url = URL(string: urlString),
+                  urlString.hasPrefix("http") {
+            AsyncImage(url: url) { phase in
+                if let img = phase.image {
+                    img.resizable().aspectRatio(contentMode: .fill)
+                } else if phase.error != nil {
+                    placeholderAvatar(pet: pet)
+                } else {
+                    ProgressView()
+                        .frame(width: 120, height: 120)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
             }
-        } else if let u = URL(string: urlString), urlString.hasPrefix("http") {
-            ZStack(alignment: .bottomLeading) {
-                AsyncImage(url: u) { phase in
-                    if let img = phase.image {
-                        img.resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Rectangle().fill(PetCareTheme.primary.opacity(0.2))
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 280, maxHeight: 280)
-                .clipped()
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.75)],
-                    startPoint: .center, endPoint: .bottom
-                )
-                .frame(maxWidth: .infinity, maxHeight: 160)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    speciesBadge(pet: pet)
-                    Text(pet.name)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(pet.breed)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-            }
+            .frame(width: 120, height: 120)
+            .clipShape(.circle)
+            .overlay(Circle().stroke(PetCareTheme.border, lineWidth: 2))
+            .shadow(color: PetCareTheme.primary.opacity(0.15), radius: 12, y: 4)
         } else {
-            gradientHero(pet: pet)
+            placeholderAvatar(pet: pet)
         }
     }
 
-    private func resolvedImage(urlString: String) -> Image? {
+    private func placeholderAvatar(pet: Pet) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [PetCareTheme.primary.opacity(0.15), PetCareTheme.primary.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Image(speciesImageName(pet.species))
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 56, height: 56)
+        }
+        .frame(width: 120, height: 120)
+        .overlay(Circle().stroke(PetCareTheme.border, lineWidth: 2))
+    }
+
+    private func resolvedLocalImage(urlString: String) -> Image? {
         guard urlString.hasPrefix("file://"),
               let path = URL(string: urlString)?.path,
               let uiImage = UIImage(contentsOfFile: path) else { return nil }
         return Image(uiImage: uiImage)
-    }
-
-    private func gradientHero(pet: Pet) -> some View {
-        ZStack {
-            LinearGradient(
-                colors: [PetCareTheme.primary, PetCareTheme.primary.opacity(0.75)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            .clipShape(.rect(bottomLeadingRadius: 32, bottomTrailingRadius: 32))
-
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 88, height: 88)
-                    Image(speciesImageName(pet.species))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 52, height: 52)
-                }
-                VStack(spacing: 4) {
-                    Text(pet.name)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                    Text(pet.breed)
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-            }
-            .padding(.vertical, 24)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 220)
-    }
-
-    private func speciesBadge(pet: Pet) -> some View {
-        HStack(spacing: 5) {
-            ZStack {
-                Circle().fill(Color.white.opacity(0.25)).frame(width: 18, height: 18)
-                Image(speciesImageName(pet.species))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
-            }
-            Text(pet.species)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.white.opacity(0.2))
-        .clipShape(Capsule())
-    }
-
-    // MARK: - Info
-
-    private func infoSection(pet: Pet) -> some View {
-        HStack(spacing: 12) {
-            infoTile(icon: "calendar", value: pet.ageDisplay, label: "Возраст", color: Color(hex: "#2196F3"))
-            infoTile(icon: "scalemass", value: String(format: "%.1f кг", pet.weight), label: "Вес", color: Color(hex: "#FF9800"))
-            infoTile(icon: "syringe", value: "\(pet.vaccinations.count)", label: "Прививки", color: PetCareTheme.primary)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-    }
-
-    private func infoTile(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(color)
-                .frame(width: 38, height: 38)
-                .background(color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            Text(value)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(PetCareTheme.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(PetCareTheme.muted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(PetCareTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
     }
 
     // MARK: - Features
@@ -404,38 +362,6 @@ struct PetDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
     }
 
-    // MARK: - Health link
-
-    private var healthLinkButton: some View {
-        Button {
-            app.selectedTab = .health
-            dismiss()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
-                Text("Мониторинг здоровья")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.white)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(PetCareTheme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 20)
-        .padding(.top, 24)
-    }
-
     // MARK: - Helpers
 
     private func sectionHeader(title: String, icon: String, color: Color) -> some View {
@@ -463,6 +389,346 @@ struct PetDetailView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
     }
 
+}
+
+// MARK: - Compact health sections
+
+struct PetRemindersCompactSection: View {
+    let petId: String
+    let onAddReminder: () -> Void
+    @EnvironmentObject private var app: AppState
+
+    private var allReminders: [Reminder] {
+        app.reminders(forPetId: petId, typeFilter: nil)
+    }
+
+    private var progressPercent: Int {
+        let total = allReminders.count
+        guard total > 0 else { return 0 }
+        let done = allReminders.filter(\.completed).count
+        return Int((Double(done) / Double(total)) * 100)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionHeader(title: "Напоминания", icon: "bell.fill", color: Color(hex: "#FF9800"))
+                Spacer()
+                Button(action: onAddReminder) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(PetCareTheme.primary)
+                }
+            }
+
+            if allReminders.isEmpty {
+                Text("Напоминания не добавлены")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PetCareTheme.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .background(PetCareTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
+            } else {
+                // Progress bar
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Прогресс")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PetCareTheme.primary)
+                        Spacer()
+                        Text("\(progressPercent)%")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PetCareTheme.primary)
+                    }
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(PetCareTheme.secondary)
+                                .frame(height: 8)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(PetCareTheme.primary)
+                                .frame(width: max(0, g.size.width * CGFloat(progressPercent) / 100), height: 8)
+                        }
+                    }
+                    .frame(height: 8)
+                    Text("\(allReminders.filter(\.completed).count) из \(allReminders.count) задач")
+                        .font(.system(size: 11))
+                        .foregroundStyle(PetCareTheme.muted)
+                }
+                .padding(14)
+                .petCareCardStyle()
+
+                // Show up to 3 reminders
+                ForEach(allReminders.prefix(3)) { r in
+                    PetCareReminderRow(
+                        title: r.title,
+                        subtitle: "\(r.date) · \(r.time)",
+                        icon: r.type.sfSymbol,
+                        iconColor: r.type.color,
+                        completed: r.completed,
+                        onToggle: { app.toggleReminder(id: r.id) }
+                    )
+                }
+
+                // "Show all" link
+                NavigationLink(value: AppRoute.petReminders(petId)) {
+                    HStack {
+                        Text("Все напоминания")
+                            .font(.system(size: 14, weight: .medium))
+                        Spacer()
+                        Text("\(allReminders.count)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PetCareTheme.muted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(PetCareTheme.muted)
+                    }
+                    .foregroundStyle(PetCareTheme.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(PetCareTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+    }
+
+    private func sectionHeader(title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PetCareTheme.primary)
+        }
+    }
+}
+
+struct PetWeightCompactSection: View {
+    let petId: String
+    let onAddWeight: () -> Void
+    @EnvironmentObject private var app: AppState
+
+    private var pet: Pet? { app.pets.first { $0.id == petId } }
+    private var weightData: [WeightRecord] { app.weightRecords(forPetId: petId) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionHeader(title: "Вес", icon: "scalemass.fill", color: Color(hex: "#2196F3"))
+                Spacer()
+                Button(action: onAddWeight) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(PetCareTheme.primary)
+                }
+            }
+
+            // Current weight card
+            HStack {
+                Text("Текущий вес")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PetCareTheme.muted)
+                Spacer()
+                Text(pet?.weight ?? 0, format: .number.precision(.fractionLength(1)))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(PetCareTheme.primary)
+                + Text(" кг")
+                    .font(.system(size: 14))
+                    .foregroundStyle(PetCareTheme.muted)
+            }
+            .padding(14)
+            .petCareCardStyle()
+
+            // Mini chart
+            if !weightData.isEmpty {
+                Chart(weightData, id: \.date) { rec in
+                    LineMark(
+                        x: .value("Месяц", rec.date),
+                        y: .value("Вес", rec.weight)
+                    )
+                    .foregroundStyle(PetCareTheme.primary)
+                    PointMark(
+                        x: .value("Месяц", rec.date),
+                        y: .value("Вес", rec.weight)
+                    )
+                    .foregroundStyle(PetCareTheme.primary)
+                }
+                .frame(height: 120)
+                .padding(14)
+                .petCareCardStyle()
+            }
+
+            // "Show all" link
+            NavigationLink(value: AppRoute.petWeight(petId)) {
+                HStack {
+                    Text("Вся история")
+                        .font(.system(size: 14, weight: .medium))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(PetCareTheme.muted)
+                }
+                .foregroundStyle(PetCareTheme.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(PetCareTheme.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+    }
+
+    private func sectionHeader(title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PetCareTheme.primary)
+        }
+    }
+}
+
+struct PetDiaryCompactSection: View {
+    let petId: String
+    let onAddDiary: () -> Void
+    let onEditEntry: (HealthDiaryEntry) -> Void
+    @EnvironmentObject private var app: AppState
+
+    private var petDiary: [HealthDiaryEntry] {
+        app.diary(forPetId: petId)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionHeader(title: "Дневник здоровья", icon: "book.fill", color: Color(hex: "#9C27B0"))
+                Spacer()
+                Button(action: onAddDiary) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(PetCareTheme.primary)
+                }
+            }
+
+            if petDiary.isEmpty {
+                Text("Записей пока нет")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PetCareTheme.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .background(PetCareTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
+            } else {
+                // Show last 2 entries
+                ForEach(petDiary.prefix(2)) { entry in
+                    compactDiaryCard(entry: entry)
+                }
+
+                // "Show all" link
+                NavigationLink(value: AppRoute.petDiary(petId)) {
+                    HStack {
+                        Text("Весь дневник")
+                            .font(.system(size: 14, weight: .medium))
+                        Spacer()
+                        Text("\(petDiary.count)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PetCareTheme.muted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(PetCareTheme.muted)
+                    }
+                    .foregroundStyle(PetCareTheme.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(PetCareTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(PetCareTheme.border, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+    }
+
+    private func compactDiaryCard(entry: HealthDiaryEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(entry.date)
+                    .font(.system(size: 11))
+                    .foregroundStyle(PetCareTheme.muted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(PetCareTheme.secondary)
+                    .clipShape(Capsule())
+                Spacer()
+                Button { onEditEntry(entry) } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 13))
+                        .foregroundStyle(PetCareTheme.muted)
+                }
+                .buttonStyle(.plain)
+            }
+            Text(entry.note)
+                .font(.system(size: 14))
+                .foregroundStyle(PetCareTheme.primary)
+                .lineLimit(2)
+            if !entry.tags.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(entry.tags.prefix(3)) { tag in
+                        Text(tag.name)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color(hex: tag.colorHex))
+                            .clipShape(Capsule())
+                    }
+                    if entry.tags.count > 3 {
+                        Text("+\(entry.tags.count - 3)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(PetCareTheme.muted)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .petCareCardStyle()
+    }
+
+    private func sectionHeader(title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PetCareTheme.primary)
+        }
+    }
 }
 
 // MARK: - Flow layout
@@ -684,10 +950,12 @@ struct EditPetSheet: View {
                 .padding(.bottom, 40)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.large])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .ignoresSafeArea(.keyboard)
     }
 
@@ -826,10 +1094,12 @@ struct AddVaccinationSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.medium])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .onAppear { nameFocused = true }
     }
 

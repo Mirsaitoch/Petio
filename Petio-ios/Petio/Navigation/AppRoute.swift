@@ -10,7 +10,9 @@ import Foundation
 enum AppRoute: Hashable {
     case pets
     case petDetail(String)
-    case health
+    case petReminders(String)
+    case petWeight(String)
+    case petDiary(String)
     case feed
     case chat
     case shelters

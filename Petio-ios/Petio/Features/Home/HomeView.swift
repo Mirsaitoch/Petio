@@ -36,8 +36,12 @@ struct HomeView: View {
                     PetListViewModel()
                 case .petDetail(let id):
                     PetDetailView(petId: id)
-                case .health:
-                    HealthView()
+                case .petReminders(let id):
+                    PetRemindersView(petId: id)
+                case .petWeight(let id):
+                    PetWeightView(petId: id)
+                case .petDiary(let id):
+                    PetDiaryView(petId: id)
                 case .feed:
                     FeedView()
                 case .chat:
@@ -214,7 +218,7 @@ struct HomeView: View {
             PetCareSectionHeader(
                 title: "Задачи на сегодня",
                 actionTitle: "Все",
-                action: { selectedTab = .health }
+                action: { selectedTab = .pets }
             )
             .padding(.horizontal, 20)
 

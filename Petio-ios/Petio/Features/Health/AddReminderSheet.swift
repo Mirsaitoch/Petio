@@ -94,10 +94,12 @@ struct AddReminderSheet: View {
                 .padding(.bottom, 24)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.height(500), .large])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .ignoresSafeArea(.keyboard)
     }
 

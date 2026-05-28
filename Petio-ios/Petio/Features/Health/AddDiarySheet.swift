@@ -93,10 +93,12 @@ struct AddDiarySheet: View {
                 .padding(.bottom, 32)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.medium, .large])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .ignoresSafeArea(.keyboard)
     }
 

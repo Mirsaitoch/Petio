@@ -120,10 +120,12 @@ struct AddWeightSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.bottom, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.height(360), .large])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .ignoresSafeArea(.keyboard)
         .onAppear { weightFocused = true }
     }

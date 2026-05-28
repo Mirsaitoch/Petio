@@ -81,10 +81,12 @@ struct AddPetSheet: View {
                 .padding(.bottom, 40)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PetCareTheme.background)
         .presentationDetents([.large])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(PetCareTheme.background)
         .ignoresSafeArea(.keyboard)
     }
 

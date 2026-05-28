@@ -49,7 +49,7 @@ struct ProfileView: View {
                     PetListViewModel()
                 case .petDetail(let id):
                     PetDetailView(petId: id)
-                case .health, .feed, .chat, .shelters, .shelterDetail:
+                case .petReminders, .petWeight, .petDiary, .feed, .chat, .shelters, .shelterDetail:
                     EmptyView()
                 }
             }

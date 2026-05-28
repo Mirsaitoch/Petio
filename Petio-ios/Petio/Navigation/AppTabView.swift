@@ -9,7 +9,7 @@ import SwiftUI
 
 enum AppTab: Int, CaseIterable {
     case home = 0
-    case health
+    case pets
     case feed
     case chat
     case profile
@@ -17,7 +17,7 @@ enum AppTab: Int, CaseIterable {
     var title: String {
         switch self {
         case .home: return "Главная"
-        case .health: return "Здоровье"
+        case .pets: return "Питомцы"
         case .feed: return "Лента"
         case .chat: return "AI-чат"
         case .profile: return "Профиль"
@@ -27,7 +27,7 @@ enum AppTab: Int, CaseIterable {
     var icon: String {
         switch self {
         case .home: return "house.fill"
-        case .health: return "heart.fill"
+        case .pets: return "pawprint.fill"
         case .feed: return "newspaper.fill"
         case .chat: return "apple.intelligence"
         case .profile: return "person.fill"
@@ -46,11 +46,31 @@ struct AppTabView: View {
                 }
                 .tag(AppTab.home)
 
-            HealthView()
-                .tabItem {
-                    Label(AppTab.health.title, systemImage: AppTab.health.icon)
-                }
-                .tag(AppTab.health)
+            NavigationStack {
+                PetListViewModel()
+                    .navigationDestination(for: AppRoute.self) { route in
+                        switch route {
+                        case .petDetail(let id):
+                            PetDetailView(petId: id)
+                        case .petReminders(let id):
+                            PetRemindersView(petId: id)
+                        case .petWeight(let id):
+                            PetWeightView(petId: id)
+                        case .petDiary(let id):
+                            PetDiaryView(petId: id)
+                        case .shelters:
+                            SheltersListView()
+                        case .shelterDetail(let shelter):
+                            ShelterDetailView(shelter: shelter)
+                        default:
+                            EmptyView()
+                        }
+                    }
+            }
+            .tabItem {
+                Label(AppTab.pets.title, systemImage: AppTab.pets.icon)
+            }
+            .tag(AppTab.pets)
 
             ChatView()
                 .tabItem {
